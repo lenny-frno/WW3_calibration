@@ -47,9 +47,10 @@ set -euo pipefail
 
 SCRIPT_VERSION="1.0"
 CONFIGS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-README="${CONFIGS_DIR}/README.md"
+REGISTRY="${CONFIGS_DIR}/REGISTRY.md"
 BASELINE_MARKER=".baseline"
 META_FILE=".config_meta"
+NML_TEMPLATE_DIR="${CONFIGS_DIR}/nml_files_template"
 
 # Canonical list of namelists this tool tracks
 NML_FILES=(
@@ -102,7 +103,7 @@ find_baseline() {
 init_readme() {
     local baseline_name="$1"
     local now="$2"
-    cat > "${README}" << EOF
+    cat > "${REGISTRY}" << EOF
 # WW3 Config Registry
 
 Managed by \`manage_config.sh\` v${SCRIPT_VERSION}.
@@ -137,20 +138,20 @@ append_table_row() {
     # We append the row just before the "---\n\n## Config Details" block
     local row="| \`${name}\` | \`${parent}\` | ${date} | ${tags} | ${desc} |"
     # Use a temp file to insert the row before the Details header
-    local tmp="${README}.tmp"
+    local tmp="${REGISTRY}.tmp"
     awk -v row="${row}" '
         /^## Config Details/ && !inserted {
             print ""; print row; print ""; inserted=1
         }
         { print }
-    ' "${README}" > "${tmp}"
-    mv "${tmp}" "${README}"
+    ' "${REGISTRY}" > "${tmp}"
+    mv "${tmp}" "${REGISTRY}"
 }
 
 # Append a collapsible diff section for a config
 append_diff_section() {
     local name="$1" parent="$2" diff_content="$3" desc="$4"
-    cat >> "${README}" << EOF
+    cat >> "${REGISTRY}" << EOF
 
 ### \`${name}\`
 
@@ -226,7 +227,7 @@ EOF
 
     # Initialise or rebuild README
     init_readme "${folder}" "${now}"
-    info "README initialised   : ${README}"
+    info "Registry initialised : ${REGISTRY}"
 
     echo ""
     echo "============================================================"
@@ -250,6 +251,7 @@ cmd_new() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --from) shift; parent_name="$(strip_slash "${1:-}")" ;;
+            --list-templates) LIST_TEMPLATES=true ;;
             --from=*) parent_name="$(strip_slash "${1#*=}")" ;;
             -*) err "Unknown option: $1" ;;
             *)  [[ -z "${new_name}" ]] && new_name="$1" || err "Unexpected argument: $1" ;;
@@ -300,6 +302,43 @@ cmd_new() {
     read -r modified_nmls
     [[ -z "${modified_nmls}" ]] && modified_nmls="none"
 
+    # If requested, list available template namelists and allow selection
+    if [[ "${LIST_TEMPLATES:-false}" == true ]]; then
+        if [[ ! -d "${NML_TEMPLATE_DIR}" ]]; then
+            warn "Template directory not found: ${NML_TEMPLATE_DIR}"
+        else
+            echo "\nAvailable template namelists in ${NML_TEMPLATE_DIR}:"
+            mapfile -t _tpls < <(ls -1 "${NML_TEMPLATE_DIR}" | grep -E '\\.nml|ww3_' || true)
+            if [[ ${#_tpls[@]} -eq 0 ]]; then
+                echo "  (no template files found)"
+            else
+                local i=0
+                for f in "${_tpls[@]}"; do
+                    printf "  %2d) %s\n" $((i+1)) "${f}"
+                    ((i++)) || true
+                done
+                printf "\n Select files by number (space-separated), or leave blank to skip:\n  > "
+                read -r _choices
+                if [[ -n "${_choices}" ]]; then
+                    for c in ${_choices}; do
+                        if [[ "${c}" =~ ^[0-9]+$ ]] && (( c >= 1 && c <= ${#_tpls[@]} )); then
+                            local sel=${_tpls[$((c-1))]}
+                            # Add to modified_nmls so downstream logic picks it up
+                            if [[ "${modified_nmls}" == "none" ]]; then
+                                modified_nmls="${sel}"
+                            else
+                                modified_nmls+=" ${sel}"
+                            fi
+                        else
+                            warn "Ignoring invalid choice: ${c}"
+                        fi
+                    done
+                    echo " Selected templates: ${modified_nmls}"
+                fi
+            fi
+        fi
+    fi
+
     echo ""
     echo "  Creating config folder and copying namelists..."
 
@@ -323,6 +362,43 @@ cmd_new() {
             (( copied++ )) || true
         fi
     done
+    # If parent lacked some files, optionally copy from the template folder.
+    # Only copy template files when the user indicated they want them via tags
+    # (e.g. tags contains 'ice' for ice-related namelists) or when the
+    # modified_nmls list explicitly mentions the file.
+    if [[ -d "${NML_TEMPLATE_DIR}" ]]; then
+        for tf in "${NML_TEMPLATE_DIR}"/*; do
+            [[ -f "${tf}" ]] || continue
+            local tb; tb=$(basename "${tf}")
+            # skip if already copied from parent
+            if [[ -f "${new_path}/${tb}" ]]; then
+                continue
+            fi
+            # Decide whether to include this template file
+            local include=false
+            # include when user explicitly listed it in modified_nmls
+            if [[ " ${modified_nmls} " == *" ${tb} "* ]] || [[ " ${modified_nmls} " == *" ${tb%.*} "* ]]; then
+                include=true
+            fi
+            # include ice-related files when tags mention 'ice' or 'sic'
+            if [[ " ${tags} " == *" ice "* || " ${tags} " == *" sic "* ]]; then
+                if [[ "${tb,,}" == *ice* || "${tb,,}" == *sic* || "${tb,,}" == *sithick* ]]; then
+                    include=true
+                fi
+            fi
+            # include boundary files when tags mention 'bounc' or 'boundary'
+            if [[ " ${tags} " == *" bounc "* || " ${tags} " == *" boundary "* ]]; then
+                if [[ "${tb,,}" == *bounc* || "${tb,,}" == *bound* ]]; then
+                    include=true
+                fi
+            fi
+            if [[ "${include}" == true ]]; then
+                cp "${tf}" "${new_path}/${tb}"
+                info "copied (template): ${tb}"
+                (( copied++ )) || true
+            fi
+        done
+    fi
     info "Total namelists copied: ${copied}"
 
     # Compute diff between parent and new folder (identical at this point — diff at creation)
@@ -367,9 +443,9 @@ is_baseline=false
 EOF
     info "Metadata written: ${new_path}/${META_FILE}"
 
-    # Update README — ensure it exists
-    if [[ ! -f "${README}" ]]; then
-        warn "README.md not found — creating a minimal one"
+    # Update registry — ensure it exists
+    if [[ ! -f "${REGISTRY}" ]]; then
+        warn "Registry not found — creating a minimal one: ${REGISTRY}"
         local baseline_name
         baseline_name=$(find_baseline 2>/dev/null) || baseline_name="unknown"
         init_readme "${baseline_name}" "${now}"
@@ -377,7 +453,7 @@ EOF
 
     append_table_row "${new_name}" "${parent_name}" "${now}" "${tags}" "${description}"
     append_diff_section "${new_name}" "${parent_name}" "${diff_content}" "${description}"
-    info "README updated  : ${README}"
+    info "Registry updated : ${REGISTRY}"
 
     echo ""
     echo "============================================================"
@@ -488,6 +564,75 @@ cmd_diff() {
     echo "============================================================"
 }
 
+# Subcommand: list-templates
+# Lists files in the template directory and exits (or prints a message)
+cmd_list_templates() {
+    if [[ ! -d "${NML_TEMPLATE_DIR}" ]]; then
+        err "Template directory not found: ${NML_TEMPLATE_DIR}"
+    fi
+    echo "Template namelists in: ${NML_TEMPLATE_DIR}"
+    ls -1 "${NML_TEMPLATE_DIR}" | sed -n '1,200p'
+}
+
+# Subcommand: rebuild-registry
+# Rebuild REGISTRY.md from existing .config_meta files and diffs
+cmd_rebuild_registry() {
+    local baseline
+    baseline=$(find_baseline 2>/dev/null) || err "No baseline found to rebuild registry from."
+    local now
+    now=$(date +"%Y-%m-%dT%H:%M:%S")
+    init_readme "${baseline}" "${now}"
+
+    # iterate over configs with .config_meta (excluding baseline)
+    for d in "${CONFIGS_DIR}"/*/; do
+        [[ -d "${d}" ]] || continue
+        local metafile="${d%/}/${META_FILE}"
+        [[ -f "${metafile}" ]] || continue
+        # read fields
+        local name parent date tags description modified
+        name=$(grep '^name=' "${metafile}" | cut -d= -f2- || true)
+        parent=$(grep '^parent=' "${metafile}" | cut -d= -f2- || true)
+        date=$(grep '^date=' "${metafile}" | cut -d= -f2- || true)
+        tags=$(grep '^tags=' "${metafile}" | cut -d= -f2- || true)
+        description=$(grep '^description=' "${metafile}" | cut -d= -f2- || true)
+        modified=$(grep '^modified_namelists=' "${metafile}" | cut -d= -f2- || true)
+
+        # skip baseline entry (already present)
+        if [[ "${name}" == "${baseline}" ]]; then
+            continue
+        fi
+
+        # compute diff vs parent for registry details
+        local parent_path="${CONFIGS_DIR}/${parent}"
+        local cfg_path="${CONFIGS_DIR}/${name}"
+        local diff_content=""
+        if [[ -d "${parent_path}" && -d "${cfg_path}" ]]; then
+            for f in "${cfg_path}"/*.nml; do
+                [[ -f "${f}" ]] || continue
+                local fn; fn=$(basename "${f}")
+                if [[ -f "${parent_path}/${fn}" ]]; then
+                    local d
+                    d=$(diff -u --label "${parent}/${fn}" --label "${name}/${fn}" "${parent_path}/${fn}" "${cfg_path}/${fn}" 2>/dev/null || true)
+                    if [[ -n "${d}" ]]; then
+                        diff_content+="### ${fn}"$'\n'"${d}"$'\n\n'
+                    fi
+                else
+                    diff_content+="### ${fn} (new file in ${name})"$'\n\n'
+                fi
+            done
+        fi
+
+        if [[ -z "${diff_content}" ]]; then
+            diff_content="(No differences recorded at rebuild time.)"
+        fi
+
+        append_table_row "${name}" "${parent}" "${date}" "${tags}" "${description}"
+        append_diff_section "${name}" "${parent}" "${diff_content}" "${description}"
+    done
+
+    info "Registry rebuilt: ${REGISTRY}"
+}
+
 # =============================================================================
 # Entrypoint
 # =============================================================================
@@ -498,8 +643,9 @@ Usage: $(basename "$0") <subcommand> [arguments]
 
 Subcommands:
   init-baseline <folder>             Mark a config folder as the baseline
-  new <name> [--from <parent>]       Create a new config (interactive)
+    new <name> [--from <parent>] [--list-templates]       Create a new config (interactive)
   diff <config_a> [<config_b>]       Diff two configs (or one vs baseline)
+    list-templates                      List available template namelists
 
 Run with no arguments to see this help.
 EOF
@@ -517,6 +663,8 @@ SUBCOMMAND="$1"; shift
 case "${SUBCOMMAND}" in
     init-baseline) cmd_init_baseline "$@" ;;
     new)           cmd_new           "$@" ;;
+    list-templates) cmd_list_templates "$@" ;;
+    rebuild-registry) cmd_rebuild_registry "$@" ;;
     diff)          cmd_diff          "$@" ;;
     --help|-h)     print_header; echo ""; usage ;;
     *) err "Unknown subcommand: '${SUBCOMMAND}'\n       Run: $(basename "$0") --help" ;;

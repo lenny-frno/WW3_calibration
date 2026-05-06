@@ -1,0 +1,19 @@
+# Ignore all files in this configs/ directory by default.
+*
+
+# Keep the files needed in the repo
+!.gitignore
+!REGISTRY.md
+!README.md
+!manage_config.sh
+!test_manage_config.sh
+!nml_files_template/
+!nml_files_template/**
+!suggestions.md
+
+# Keep baseline folder (explicit). Update this entry if the baseline name changes.
+!CARRA2_exp_1/
+!CARRA2_exp_1/**
+
+# Ignore all other config folders and files (they will be untracked)
+# (If you add a new baseline, add its folder here with a leading '!')
