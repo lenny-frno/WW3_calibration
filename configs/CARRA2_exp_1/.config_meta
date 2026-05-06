@@ -1,0 +1,8 @@
+# WW3 config metadata — managed by manage_config.sh v1.0
+name=CARRA2_exp_1
+parent=none
+date=2026-05-06T14:02:25
+description=Baseline configuration
+tags=baseline
+modified_namelists=none
+is_baseline=true
