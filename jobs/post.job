@@ -1,0 +1,64 @@
+#!/bin/bash
+# =============================================================================
+# post.job — WW3 postprocessing (ww3_ounf)
+# =============================================================================
+# Version: 2.2
+#
+# Called by run_exp.sh via sbatch — do not submit directly.
+# Arguments:
+#   $1  EXP_DIR
+#   $2  WORK_DIR
+#   $3  META_DIR
+# =============================================================================
+set -euo pipefail
+
+EXP_DIR="${1}"
+WORK_DIR="${2}"
+META_DIR="${3}"
+
+echo "============================================================"
+echo " WW3 Postprocessing  (framework v2.2)"
+echo "============================================================"
+echo "  Job ID   : ${SLURM_JOB_ID:-unknown}"
+echo "  Work dir : ${WORK_DIR}"
+echo "  Meta dir : ${META_DIR}"
+echo "  Start    : $(date --iso-8601=seconds)"
+echo "============================================================"
+
+# --------------------------------------------------------------------------
+# Load environment from setup/env.sh
+# --------------------------------------------------------------------------
+ENV_FILE="${META_DIR}/setup/env.sh"
+if [[ ! -f "${ENV_FILE}" ]]; then
+    echo "ERROR: env.sh not found: ${ENV_FILE}"
+    exit 1
+fi
+source "${ENV_FILE}"
+
+# --------------------------------------------------------------------------
+# Validate and enter work directory
+# --------------------------------------------------------------------------
+mkdir -p "${WORK_DIR}"
+cd "${WORK_DIR}" || { echo "ERROR: cannot cd to ${WORK_DIR}"; exit 1; }
+
+echo ""
+echo "Working directory:"
+ls -la
+echo ""
+
+# --------------------------------------------------------------------------
+# [1/2] ww3_ounf
+# --------------------------------------------------------------------------
+trap 'touch "${WORK_DIR}/post.failed"; echo "ERROR: ww3_ounf failed"' ERR
+
+echo "[1/1] Running ww3_ounf..."
+[[ ! -f "ww3_ounf.nml" ]] && echo "ERROR: ww3_ounf.nml not found in ${WORK_DIR}" && exit 1
+
+"${WORK_DIR}/ww3_ounf" | tee ww3_ounf.out
+echo "      ww3_ounf complete"
+
+echo ""
+echo "============================================================"
+echo " Postprocessing complete: $(date --iso-8601=seconds)"
+echo "============================================================"
+
