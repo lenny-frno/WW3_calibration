@@ -1,40 +1,30 @@
 # configs/ — documentation
 
-This folder contains configuration templates and a registry for WW3 namelist
-sets used by experiments. There are two kinds of documents here:
+This folder stores config templates and a registry for WW3 namelist sets.
 
-- `REGISTRY.md` — machine-updated registry of named configs (do not edit).
-- `README.md` — this human-facing documentation (you are reading it).
-
-Contents
-- `manage_config.sh` — CLI to manage config variants (`init-baseline`, `new`, `diff`).
-- `nml_files_template/` — canonical template namelists to copy when creating configs.
-- `<config>/` — per-config folders created by `manage_config.sh`.
+What to use
+- `manage_config.sh` — manage configs: `init-baseline`, `new`, `diff`, `--list-templates`, `rebuild-registry`.
+- `nml_files_template/` — template namelists to copy when creating configs.
+- `REGISTRY.md` — full machine-generated registry (do not edit).
+- `REGISTRY_SUMMARY.md` — compact registry summary (useful for automation/AI).
 
 Quick examples
 
-Create a baseline from an existing folder:
+Create a baseline:
 
 ```bash
 ./manage_config.sh init-baseline CARRA2_exp_1
 ```
 
-Create a new config branching from the baseline (interactive):
+Create a new config (interactive) and optionally select templates:
 
 ```bash
-./manage_config.sh new with_ice
+./manage_config.sh new myconfig --from CARRA2_exp_1 --list-templates
 ```
 
-Notes about templates
-- When a parent config lacks optional namelists (ice, boundary, etc.), the
-  tool can copy appropriate files from `nml_files_template/` into the new
-  config only when requested (via tags or explicit modified list).
-- The registry of created configs is stored in `REGISTRY.md` and is updated
-  automatically by `manage_config.sh`.
-
-If you want me to: I can (a) add non-interactive flags (`--tags`,
-`--modified`, `--yes`), (b) add a `--list-templates` command, or (c)
-improve template filename mapping. Which would you like next?
+Notes
+- Templates are only copied when requested (via tags, explicit modified list, or interactive selection).
+- Use `./manage_config.sh rebuild-registry` to regenerate `REGISTRY.md` from existing `.config_meta` files.
 
 ### `with_sic`
 

@@ -10,6 +10,7 @@
 !nml_files_template/
 !nml_files_template/**
 !suggestions.md
+!REGISTRY_SUMMARY.md
 
 # Keep baseline folder (explicit). Update this entry if the baseline name changes.
 !CARRA2_exp_1/

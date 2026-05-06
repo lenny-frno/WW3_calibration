@@ -173,6 +173,10 @@ The performance logger runs under `--dependency=afterany` so timing and status
 are captured regardless of whether the model succeeded or failed.
  
 ---
+
+Machine-friendly summaries
+- For quick programmatic access to configs and registry data see: [configs/REGISTRY_SUMMARY.md](configs/REGISTRY_SUMMARY.md) (compact), and the full registry at [configs/REGISTRY.md](configs/REGISTRY.md).
+- Use [configs/manage_config.sh](configs/manage_config.sh) to script config creation and inspection; `--list-templates` and `rebuild-registry` are available.
  
 ## Run Status Values
  
