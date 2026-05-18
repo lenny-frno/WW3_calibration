@@ -1,74 +1,62 @@
 #!/usr/bin/env bash
 # =============================================================================
-# run_phase2_experiments.sh — WW3 compiler flag combination study (Phase 2)
+# run_flag_experiments.sh — WW3 compiler flag ablation study (Phase 1)
 # =============================================================================
-# Version: 1.0
+# Version: 2.0
 #
 # WHAT IT DOES
 # ------------
-# Reads a user-defined experiment file and, for each experiment:
-#   1. Validates that the specified extra flags don't duplicate or conflict
-#      with the reference flags
-#   2. Copies the reference model folder to a new directory
-#   3. Patches WW3/model/src/CMakeLists.txt with the combined flags
-#   4. Compiles WW3 from scratch
-#   5. Creates model/exe/ symlinks (for setup.sh compatibility)
-#   6. Sets up a benchmark experiment in the time_Benchmark framework
-#   7. Saves the patched CMakeLists.txt to experiment metadata
-#   8. Submits a Slurm benchmark run
+# For each experiment (one flag change from the reference):
+#   1. Copies the reference model folder (test_Hamish) to a new directory
+#   2. Patches WW3/model/src/CMakeLists.txt with the target compiler flags
+#   3. Compiles WW3 from scratch using the patched flags
+#   4. Sets up a benchmark experiment in the time_Benchmark framework
+#   5. Submits a Slurm benchmark run
 #
-# INPUT FILE FORMAT
-# -----------------
-# Two formats may be mixed in the same file.
-# Lines starting with '#' are comments; blank lines are ignored.
-#
-# Format A — additive (extra flags appended to reference release block):
-#
-#   exp_name  FLAG [FLAG ...]
-#
-#   All listed flags are added to the reference release block.
-#   Validation: each flag token must not already appear in the reference.
-#   Semantic conflicts are also caught (e.g. -fma conflicts with -no-fma).
-#   For experiments that need to REPLACE a base flag (e.g. -ipo for -ip,
-#   -fma for -no-fma), use Format B instead.
-#
-# Format B — full specification (replaces reference flag blocks entirely):
-#
-#   exp_name | description | full_base_flags | full_release_flags
-#
-#   Same syntax as Phase 1. Use this when a base flag must be replaced.
-#   The script verifies the flags differ from the reference.
-#
-# See phase2_experiments.txt for a ready-to-edit template.
-#
-# REFERENCE FLAGS (Intel Fortran, test_Hamish CMakeLists.txt)
-# -----------------------------------------------------------
-# compile_flags (base, ALL build types):
+# REFERENCE FLAGS (from test_Hamish CMakeLists.txt, Intel Fortran block)
+# -----------------------------------------------------------------------
+# compile_flags (base — applied to ALL build types):
 #   -no-fma -ip -g -traceback -i4 -real-size 32 -fp-model precise
 #   -assume byterecl -fno-alias -fno-fnalias
-#   ( -sox appended automatically by cmake on Linux )
+#   ( -sox is appended by cmake automatically on Linux )
 #
-# compile_flags_release (Release build only):
+# compile_flags_release (added only for -DCMAKE_BUILD_TYPE=Release):
 #   -O3
+#
+# PHASE 1 EXPERIMENTS (one flag changed at a time)
+# -------------------------------------------------
+# Release-flag changes:
+#   comp_ref       reference (must reproduce ~107 sim_h/h)
+#   comp_O2        release: -O2 (weaker; quantify cost of -O3)
+#   comp_xHost     release: -O3 -xHost
+#   comp_unroll    release: -O3 -unroll-aggressive
+#   comp_align     release: -O3 -align array64byte
+#
+# Base-flag changes:
+#   comp_fma       base: -fma  (was -no-fma)
+#   comp_fp_fast1  base: -fp-model fast=1  (was precise)
+#   comp_fp_fast2  base: -fp-model fast=2  (was precise)
+#   comp_ipo       base: -ipo  (was -ip; stronger cross-file IPO)
+#   comp_no_ip     base: remove -ip entirely
 #
 # USAGE
 # -----
-#   bash run_phase2_experiments.sh -i phase2_experiments.txt [options]
+#   bash run_flag_experiments.sh [--dry-run] [--skip-compile] [--only EXP_ID]
 #
 # OPTIONS
-#   -i | --input FILE    Experiment definition file (required)
-#   --dry-run            Print all actions without executing anything
-#   --skip-compile       Skip copy + compile; only setup and submit
-#   --only EXP_ID        Run a single experiment by ID
-#   -h | --help          Show this help message
+#   --dry-run        Print all actions without executing anything
+#   --skip-compile   Skip copy + compile; only setup and submit (binary must exist)
+#   --only EXP_ID    Run a single experiment by ID (e.g. --only comp_O2)
+#   -h | --help      Show this help message
 #
 # RESULTS
 #   column -t -s, <BENCH_DIR>/benchmark_summary.csv
 # =============================================================================
 
 SCRIPT_NAME=$(basename "$0")
-VERSION="1.0"
+VERSION="2.0"
 
+# External tools this script depends on
 DEPENDENCIES=(python3 bash cp rm find ls)
 
 # ---------------------------------------------------------------------------
@@ -91,9 +79,11 @@ fi
 MODELS_ROOT="/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/compilation_Benchmark/models"
 REFERENCE_MODEL="${MODELS_ROOT}/test_Hamish"
 
+# Switch file taken from the reference model itself (defines physics switches)
 SWITCH_FILE="${REFERENCE_MODEL}/WW3/model/bin/switch_dnora"
 
-BENCH_DIR="/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/time_Benchmark"
+# Workspace root — derived from this script's location (benchmarking/ subdir)
+BENCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_DIR="${BENCH_DIR}/configs/oneVar_noSaving"
 
 # Slurm layout — kept IDENTICAL across all experiments for a fair comparison
@@ -103,30 +93,100 @@ RUN_CPUS_PER_TASK=2
 RUN_DURATION="10h"
 
 # =============================================================================
-# REFERENCE FLAGS — must match test_Hamish CMakeLists.txt Intel block exactly.
-# Used for duplicate-token and semantic-conflict validation.
+# EXPERIMENTS
+# =============================================================================
+#
+# Format: "EXP_ID|short description|base_flags|release_flags"
+#
+#   base_flags     replaces the set(compile_flags ...)    block in CMakeLists.txt
+#   release_flags  replaces the set(compile_flags_release ...) block
+#
+# Flags are space-separated tokens. Multi-token flags like "-fp-model fast=1"
+# are split by the space —  each token becomes its own CMake list element,
+# which is standard cmake/ifort practice.
+#
+# NOTE: -sox is NOT listed here because cmake appends it automatically for
+# Linux builds via an if(LINUX) block that we do not touch.
 # =============================================================================
 
-REF_BASE="-no-fma -ip -g -traceback -i4 -real-size 32 -fp-model precise -assume byterecl -fno-alias -fno-fnalias"
-REF_RELEASE="-O3"
+# Convenience variable: base flags that are the same across ALL experiments
+_REF_BASE="-no-fma -ip -g -traceback -i4 -real-size 32 -fp-model precise -assume byterecl -fno-alias -fno-fnalias"
 
-# Token arrays for exact-duplicate detection
-read -ra _REF_BASE_TOKENS    <<< "${REF_BASE}"
-read -ra _REF_RELEASE_TOKENS <<< "${REF_RELEASE}"
+declare -a EXPERIMENTS=(
 
-# Semantic conflict map.
-# If the user lists the KEY token, it semantically conflicts with the VALUE
-# token already in the reference — ifort would receive both and behave
-# unpredictably.  The script errors out and asks for Format B instead.
-# Format: [user_token]="conflicting_reference_token"
-declare -A SEMANTIC_CONFLICTS=(
-    ["-fma"]="-no-fma"
-    ["-ipo"]="-ip"
-    ["fast=1"]="precise"
-    ["fast=2"]="precise"
-    ["-O0"]="-O3"
-    ["-O1"]="-O3"
-    ["-O2"]="-O3"
+    # ------------------------------------------------------------------
+    # comp_ref — exact reproduction of test_Hamish
+    # This is the sanity check: must reproduce ~107 sim_h/h.
+    # All other results are only meaningful relative to this.
+    # ------------------------------------------------------------------
+    "comp_ref|\
+Reference: exact test_Hamish flags (-O3, no changes)|\
+${_REF_BASE}|\
+-O3"
+
+    # ------------------------------------------------------------------
+    # Release-flag changes  (compile_flags_release block)
+    # These flags are ADDED on top of the base flags in Release builds.
+    # ------------------------------------------------------------------
+
+    # Weaken optimisation level to quantify the benefit of -O3
+    "comp_O2|\
+Release: -O2 instead of -O3 (cost of O3)|\
+${_REF_BASE}|\
+-O2"
+
+    # Enable host-CPU-specific vectorisation (SIMD auto)
+    "comp_xHost|\
+Release: add -xHost (CPU-native vectorisation)|\
+${_REF_BASE}|\
+-O3 -xHost"
+
+    # Force aggressive loop unrolling
+    "comp_unroll|\
+Release: add -unroll-aggressive|\
+${_REF_BASE}|\
+-O3 -unroll-aggressive"
+
+    # Align Fortran arrays to 64-byte boundaries (cache-line aligned)
+    "comp_align|\
+Release: add -align array64byte|\
+${_REF_BASE}|\
+-O3 -align array64byte"
+
+    # ------------------------------------------------------------------
+    # Base-flag changes  (compile_flags block)
+    # These flags apply to ALL build types (Debug and Release).
+    # ------------------------------------------------------------------
+
+    # Allow fused multiply-add (was explicitly disabled via -no-fma)
+    "comp_fma|\
+Base: -fma instead of -no-fma (allow FMA instructions)|\
+-fma -ip -g -traceback -i4 -real-size 32 -fp-model precise -assume byterecl -fno-alias -fno-fnalias|\
+-O3"
+
+    # Relax floating-point model (level 1: fewer reassociations allowed)
+    "comp_fp_fast1|\
+Base: -fp-model fast=1 instead of precise|\
+-no-fma -ip -g -traceback -i4 -real-size 32 -fp-model fast=1 -assume byterecl -fno-alias -fno-fnalias|\
+-O3"
+
+    # Relax floating-point model further (level 2: more aggressive)
+    "comp_fp_fast2|\
+Base: -fp-model fast=2 instead of precise|\
+-no-fma -ip -g -traceback -i4 -real-size 32 -fp-model fast=2 -assume byterecl -fno-alias -fno-fnalias|\
+-O3"
+
+    # Upgrade -ip (single-file inlining) to -ipo (cross-file IPO)
+    "comp_ipo|\
+Base: -ipo instead of -ip (cross-file inter-procedural optimisation)|\
+-no-fma -ipo -g -traceback -i4 -real-size 32 -fp-model precise -assume byterecl -fno-alias -fno-fnalias|\
+-O3"
+
+    # Remove -ip entirely to quantify its current contribution
+    "comp_no_ip|\
+Base: remove -ip (quantify current single-file inlining cost)|\
+-no-fma -g -traceback -i4 -real-size 32 -fp-model precise -assume byterecl -fno-alias -fno-fnalias|\
+-O3"
 )
 
 # =============================================================================
@@ -135,47 +195,38 @@ declare -A SEMANTIC_CONFLICTS=(
 function usage() {
     cat << EOM
 
-WW3 compiler flag combination study — Phase 2 (multiple flags per experiment).
+WW3 single-flag compiler ablation study — Phase 1 (one change at a time).
 
-usage: ${SCRIPT_NAME} -i <experiment_file> [options]
+usage: ${SCRIPT_NAME} [options]
 
 options:
-    -i | --input FILE    Experiment definition file (required)
-    --dry-run            Print all actions without executing
-    --skip-compile       Skip copy + compile (binary must already exist)
-    --only EXP_ID        Run a single experiment by ID
-    -h | --help          Show this help message
-    --version            Print version string
+    --dry-run           Print all actions without executing anything
+    --skip-compile      Skip copy + compile (binary must already exist)
+    --only EXP_ID       Run a single experiment by ID
+    -h | --help         Show this help message
+    --version           Print version string
 
-input file formats (may be mixed in the same file):
-
-  Format A — additive: extra flags appended to reference release block
-    exp_name  FLAG [FLAG ...]
-
-  Format B — full specification: replaces reference flag blocks entirely
-    exp_name | description | full_base_flags | full_release_flags
-
-  Lines starting with '#' are comments; blank lines are ignored.
-  See phase2_experiments.txt for a ready-to-edit template.
-
-reference flags:
-    base:    ${REF_BASE}
-    release: ${REF_RELEASE}
+available experiments:
+$(for entry in "${EXPERIMENTS[@]}"; do
+    IFS='|' read -r id desc _ _ <<< "${entry}"
+    id=$(echo "${id}" | xargs)
+    printf "    %-18s %s\n" "${id}" "${desc}"
+done)
 
 dependencies: ${DEPENDENCIES[*]}
 
 examples:
-    # Preview all experiments without running anything
-    ${SCRIPT_NAME} -i phase2_experiments.txt --dry-run
+    # Full ablation (all experiments, sequential compile + submit)
+    ${SCRIPT_NAME}
 
-    # Run all experiments
-    ${SCRIPT_NAME} -i phase2_experiments.txt
+    # Dry-run to review what would happen
+    ${SCRIPT_NAME} --dry-run
 
-    # Run a single experiment
-    ${SCRIPT_NAME} -i phase2_experiments.txt --only p2_unroll_xHost
+    # Compile and submit a single experiment
+    ${SCRIPT_NAME} --only comp_xHost
 
-    # Re-setup and re-submit without recompiling
-    ${SCRIPT_NAME} -i phase2_experiments.txt --only p2_unroll_xHost --skip-compile
+    # Re-submit without recompiling (binary already exists)
+    ${SCRIPT_NAME} --only comp_xHost --skip-compile
 
 results:
     column -t -s, ${BENCH_DIR}/benchmark_summary.csv
@@ -188,21 +239,12 @@ EOM
 # main
 # =============================================================================
 function main() {
-    local input_file=""
     local dry_run=false
     local skip_compile=false
     local only_exp=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -i | --input)
-                shift
-                if [[ -z "${1:-}" ]]; then
-                    print_error "--input requires a file path"
-                    usage
-                fi
-                input_file="$1"
-                ;;
             --dry-run)
                 dry_run=true
                 ;;
@@ -232,15 +274,6 @@ function main() {
         shift
     done
 
-    if [[ -z "${input_file}" ]]; then
-        print_error "Input file is required (-i / --input)"
-        usage
-    fi
-    if [[ ! -f "${input_file}" ]]; then
-        print_error "Input file not found: ${input_file}"
-        exit 1
-    fi
-
     # Publish as globals so helper functions can read them
     DRY_RUN="${dry_run}"
     SKIP_COMPILE="${skip_compile}"
@@ -248,19 +281,7 @@ function main() {
 
     check_dependencies
 
-    # Load and validate all experiment definitions up front
-    print_header "Parsing experiment file: ${input_file}"
-    declare -a EXPERIMENTS=()
-    if ! parse_input_file "${input_file}" EXPERIMENTS; then
-        exit 1
-    fi
-
-    if [[ ${#EXPERIMENTS[@]} -eq 0 ]]; then
-        print_error "No valid experiments found in: ${input_file}"
-        exit 1
-    fi
-
-    # Validate --only argument up front
+    # Validate --only argument up front if provided
     if [[ -n "${ONLY_EXP}" ]]; then
         local found=false
         for entry in "${EXPERIMENTS[@]}"; do
@@ -270,18 +291,12 @@ function main() {
         done
         if [[ "${found}" == false ]]; then
             print_error "Unknown experiment ID: '${ONLY_EXP}'"
-            print_error "Available IDs in ${input_file}:"
-            for entry in "${EXPERIMENTS[@]}"; do
-                IFS='|' read -r id _ _ _ <<< "${entry}"
-                id=$(echo "${id}" | xargs)
-                echo "    ${id}"
-            done
+            print_error "Run with --help to see available experiments"
             exit 1
         fi
     fi
 
-    print_header "WW3 Compiler Flag Combination Study  v${VERSION}"
-    echo "  Input file       : ${input_file}"
+    print_header "WW3 Compiler Flag Ablation Study  v${VERSION}"
     echo "  Reference model  : ${REFERENCE_MODEL}"
     echo "  Models root      : ${MODELS_ROOT}"
     echo "  Benchmark dir    : ${BENCH_DIR}"
@@ -299,7 +314,7 @@ function main() {
 
     for entry in "${EXPERIMENTS[@]}"; do
         IFS='|' read -r exp_id description base_flags release_flags <<< "${entry}"
-        exp_id=$(echo "${exp_id}" | xargs)
+        exp_id=$(echo "${exp_id}" | xargs)   # strip leading/trailing whitespace
 
         if [[ -n "${ONLY_EXP}" && "${exp_id}" != "${ONLY_EXP}" ]]; then
             skipped+=("${exp_id}")
@@ -315,7 +330,7 @@ function main() {
     done
 
     echo ""
-    print_header "Phase 2 Study Complete"
+    print_header "Ablation Study Complete"
     [[ "${DRY_RUN}" == true ]] && echo -e "  ${YELLOW}*** DRY-RUN — nothing was executed ***${NC}"
     echo ""
     printf "  %-12s (%d): %s\n" "Submitted"  "${#submitted[@]}"  "${submitted[*]:-—}"
@@ -327,141 +342,14 @@ function main() {
     echo "  Monitor queue:"
     echo "    watch -n 30 'squeue -u \$(whoami)'"
     echo ""
+    echo "  Watch results appear live:"
+    echo "    watch -n 60 'column -t -s, ${BENCH_DIR}/benchmark_summary.csv'"
+    echo ""
     echo "  Full results when done:"
     echo "    column -t -s, ${BENCH_DIR}/benchmark_summary.csv"
 
     [[ ${#failed[@]} -gt 0 ]] && exit 1
     exit 0
-}
-
-# =============================================================================
-# parse_input_file — read and validate experiments from the input file
-#
-# Arguments:
-#   $1  path to the input file
-#   $2  name of the output array variable (populated via nameref)
-#
-# Each output entry has the unified format:
-#   "exp_id|description|base_flags|release_flags"
-#
-# Returns 0 on success, 1 if any validation error is found (no experiments
-# are run when the input file contains errors).
-# =============================================================================
-function parse_input_file() {
-    local input_file="$1"
-    local -n _out="$2"
-
-    local line_num=0
-    local errors=0
-
-    while IFS= read -r line || [[ -n "${line}" ]]; do
-        (( line_num++ ))
-
-        # Strip inline comments and trim whitespace
-        line="${line%%#*}"
-        line=$(echo "${line}" | xargs)
-        [[ -z "${line}" ]] && continue
-
-        if [[ "${line}" == *"|"* ]]; then
-            # ------------------------------------------------------------------
-            # Format B — full flag specification
-            # exp_name | description | full_base_flags | full_release_flags
-            # ------------------------------------------------------------------
-            IFS='|' read -r exp_id description base_flags release_flags <<< "${line}"
-            exp_id=$(echo "${exp_id}"           | xargs)
-            description=$(echo "${description}" | xargs)
-            base_flags=$(echo "${base_flags}"   | xargs)
-            release_flags=$(echo "${release_flags}" | xargs)
-
-            if [[ -z "${exp_id}" || -z "${base_flags}" || -z "${release_flags}" ]]; then
-                print_error "Line ${line_num}: Format B requires exactly 4 '|'-separated fields:"
-                print_error "  exp_id | description | full_base_flags | full_release_flags"
-                (( errors++ ))
-                continue
-            fi
-
-            # Catch accidental copy-paste of the reference unchanged
-            if [[ "${base_flags}" == "${REF_BASE}" && "${release_flags}" == "${REF_RELEASE}" ]]; then
-                print_warning "Line ${line_num}: '${exp_id}' flags are identical to the reference — skipping"
-                continue
-            fi
-
-            _out+=("${exp_id}|${description}|${base_flags}|${release_flags}")
-            echo -e "  ${GREEN}[B]${NC} ${exp_id}"
-            echo    "      base:    ${base_flags}"
-            echo    "      release: ${release_flags}"
-
-        else
-            # ------------------------------------------------------------------
-            # Format A — additive: extra flags appended to reference release block
-            # exp_name  FLAG [FLAG ...]
-            # ------------------------------------------------------------------
-            read -ra tokens <<< "${line}"
-            local exp_id="${tokens[0]}"
-            local extra=("${tokens[@]:1}")
-
-            if [[ ${#extra[@]} -eq 0 ]]; then
-                print_error "Line ${line_num}: '${exp_id}': Format A requires at least one flag after the experiment name"
-                (( errors++ ))
-                continue
-            fi
-
-            local valid=true
-
-            for token in "${extra[@]}"; do
-                # Exact-duplicate check: reference base tokens
-                for ref_tok in "${_REF_BASE_TOKENS[@]}"; do
-                    if [[ "${token}" == "${ref_tok}" ]]; then
-                        print_error "Line ${line_num}: '${exp_id}': '${token}' is already in the reference base block."
-                        print_error "  Adding it again would create a duplicate in CMakeLists.txt."
-                        print_error "  Remove it from the experiment, or use Format B for a full flag override."
-                        valid=false
-                    fi
-                done
-
-                # Exact-duplicate check: reference release tokens
-                for ref_tok in "${_REF_RELEASE_TOKENS[@]}"; do
-                    if [[ "${token}" == "${ref_tok}" ]]; then
-                        print_error "Line ${line_num}: '${exp_id}': '${token}' is already in the reference release block."
-                        print_error "  Adding it again would create a duplicate in CMakeLists.txt."
-                        print_error "  Remove it from the experiment, or use Format B for a full flag override."
-                        valid=false
-                    fi
-                done
-
-                # Semantic conflict check
-                if [[ -n "${SEMANTIC_CONFLICTS["${token}"]+_}" ]]; then
-                    local conflict_ref="${SEMANTIC_CONFLICTS["${token}"]}"
-                    print_error "Line ${line_num}: '${exp_id}': '${token}' semantically conflicts with '${conflict_ref}' already in the reference."
-                    print_error "  ifort cannot have both simultaneously. Use Format B to replace '${conflict_ref}' with '${token}'."
-                    valid=false
-                fi
-            done
-
-            if [[ "${valid}" == false ]]; then
-                (( errors++ ))
-                continue
-            fi
-
-            local extra_str="${extra[*]}"
-            local final_base="${REF_BASE}"
-            local final_release="${REF_RELEASE} ${extra_str}"
-            local desc="Phase 2 combo: ref + ${extra_str}"
-
-            _out+=("${exp_id}|${desc}|${final_base}|${final_release}")
-            echo -e "  ${GREEN}[A]${NC} ${exp_id}"
-            echo    "      extra release flags: ${extra_str}"
-        fi
-
-    done < "${input_file}"
-
-    if [[ ${errors} -gt 0 ]]; then
-        echo ""
-        print_error "${errors} validation error(s) found in ${input_file} — fix them before running."
-        return 1
-    fi
-
-    return 0
 }
 
 # =============================================================================
@@ -523,7 +411,8 @@ function run_experiment() {
                 print_error "Expected path inside model copy: WW3/model/src/CMakeLists.txt"
                 return 1
             fi
-            if ! cp "${cmake_file}" "${cmake_file}.bak_phase2"; then
+            # Keep the original as a backup for manual inspection
+            if ! cp "${cmake_file}" "${cmake_file}.bak_ablation"; then
                 print_error "Failed to backup CMakeLists.txt"
                 return 1
             fi
@@ -535,6 +424,8 @@ function run_experiment() {
 
         # ------------------------------------------------------------------
         # Step 3 — Compile WW3
+        # The compile script is written to the model dir so it can be
+        # inspected later or re-run manually if needed.
         # ------------------------------------------------------------------
         print_step 3 5 "Compile WW3 (make -j24)"
 
@@ -542,15 +433,18 @@ function run_experiment() {
 
         if [[ "${DRY_RUN}" == false ]]; then
 
+            # Write the self-contained compile script
             cat > "${compile_script}" << COMPEOF
 #!/usr/bin/env bash
-# Auto-generated by run_phase2_experiments.sh for: ${exp_id}
+# Auto-generated by run_flag_experiments.sh for: ${exp_id}
 # Do not edit — re-run the parent script to regenerate.
 
 cd "${ww3_dir}"
 
+# Remove any previous build so flags are applied cleanly
 rm -rf build
 
+# Load the Intel oneAPI MPI build environment
 module purge
 module load buildenv-intel/2023.1.0-hpc1
 module load CMake/3.31.7-hpc1
@@ -594,6 +488,7 @@ COMPEOF
         fi
 
     else
+        # --skip-compile: skip copy and compile, assume binary already exists
         print_info "[SKIP-COMPILE] Assuming binary exists at ${binary}"
         if [[ "${DRY_RUN}" == false && ! -f "${binary}" ]]; then
             print_error "Binary not found (--skip-compile is set): ${binary}"
@@ -603,9 +498,10 @@ COMPEOF
 
     # ------------------------------------------------------------------
     # Step 3b — Populate model/exe/ with symlinks to cmake-installed bins
-    # setup.sh resolves executables as ${ww3_dir}/model/exe/<name> (legacy
-    # w3_make layout). cmake installs to build/install/bin/. Symlinks bridge
-    # both layouts. Runs unconditionally — ln -sf is idempotent.
+    # setup.sh resolves executables as ${ww3_dir}/model/exe/<name>, which
+    # is the legacy w3_make layout.  cmake installs to build/install/bin/.
+    # Creating symlinks bridges the two conventions without patching setup.sh.
+    # Runs unconditionally (also with --skip-compile) since ln -sf is idempotent.
     # ------------------------------------------------------------------
     local install_bin="${build_dir}/install/bin"
     local model_exe="${ww3_dir}/model/exe"
@@ -633,9 +529,9 @@ COMPEOF
     # ------------------------------------------------------------------
     print_step 4 5 "Set up benchmark experiment: ${exp_id}"
 
-    local tags="ablation,phase2,multi_flag"
+    local tags="ablation,phase1,single_flag"
 
-    if ! run_or_dry bash "${BENCH_DIR}/setup.sh" \
+    if ! run_or_dry bash "${BENCH_DIR}/scripts/setup.sh" \
             -e "${exp_id}" \
             -w "${ww3_dir}" \
             -g CARRA2 \
@@ -648,7 +544,7 @@ COMPEOF
         return 1
     fi
 
-    # Save the patched CMakeLists.txt to metadata for provenance
+    # Copy patched CMakeLists.txt into experiment metadata for provenance
     local meta_dir="${BENCH_DIR}/experiments/${exp_id}/metadata"
     if [[ "${DRY_RUN}" == false ]]; then
         if [[ -f "${cmake_file}" ]]; then
@@ -666,7 +562,7 @@ COMPEOF
     # ------------------------------------------------------------------
     print_step 5 5 "Submit Slurm benchmark run"
 
-    if ! run_or_dry bash "${BENCH_DIR}/run_exp.sh" \
+    if ! run_or_dry bash "${BENCH_DIR}/scripts/run_exp.sh" \
             -e "${exp_id}" \
             -N "${RUN_NODES}" \
             -n "${RUN_TASKS_PER_NODE}" \
@@ -683,13 +579,23 @@ COMPEOF
 
 # =============================================================================
 # patch_cmake — rewrite the Intel Fortran flag blocks in CMakeLists.txt
-# (identical to Phase 1 version)
+#
+# Arguments:
+#   $1  absolute path to the CMakeLists.txt file
+#   $2  space-separated base flag string  (replaces compile_flags block)
+#   $3  space-separated release flag string (replaces compile_flags_release block)
+#
+# Strategy: Python handles multi-line regex replacement reliably.
+# Each space-separated token is written as its own quoted CMake list element.
+# Example: "-fp-model fast=1" → two elements: "-fp-model" and "fast=1"
+# (cmake passes each list element as a separate argument to the compiler)
 # =============================================================================
 function patch_cmake() {
     local cmake_file="$1"
     local base_flags="$2"
     local release_flags="$3"
 
+    # Format each space-separated token as its own indented cmake list line
     local cmake_base cmake_release
     cmake_base=$(echo "${base_flags}"    | tr ' ' '\n' | awk '{printf "    \"%s\"\n", $0}')
     cmake_release=$(echo "${release_flags}" | tr ' ' '\n' | awk '{printf "    \"%s\"\n", $0}')
@@ -697,14 +603,15 @@ function patch_cmake() {
     python3 - "${cmake_file}" "${cmake_base}" "${cmake_release}" << 'PYEOF'
 import sys, re
 
-cmake_file = sys.argv[1]
-base_fmt   = sys.argv[2]
-rel_fmt    = sys.argv[3]
+cmake_file  = sys.argv[1]
+base_fmt    = sys.argv[2]
+rel_fmt     = sys.argv[3]
 
 with open(cmake_file) as fh:
     content = fh.read()
 
-# Replace compile_flags_release FIRST to avoid the shorter name matching inside it
+# Replace compile_flags_release FIRST (longer name) to avoid the shorter
+# compile_flags pattern accidentally matching inside the longer name.
 new_release = f'set(compile_flags_release\n{rel_fmt}\n)'
 content, n_rel = re.subn(
     r'set\(compile_flags_release[^)]*\)',
@@ -715,6 +622,7 @@ content, n_rel = re.subn(
 if n_rel == 0:
     print("WARNING: set(compile_flags_release ...) not found — check CMakeLists.txt", file=sys.stderr)
 
+# Replace compile_flags base block (\b avoids re-matching compile_flags_release)
 new_base = f'set(compile_flags\n{base_fmt}\n)'
 content, n_base = re.subn(
     r'set\(compile_flags\b[^)]*\)',
@@ -733,7 +641,8 @@ PYEOF
 }
 
 # =============================================================================
-# verify_flags — confirm compiler flags from flags.make after compilation
+# verify_flags — read flags.make after compilation to confirm compiler flags
+#               were actually passed to mpiifort
 # =============================================================================
 function verify_flags() {
     local build_dir="$1"

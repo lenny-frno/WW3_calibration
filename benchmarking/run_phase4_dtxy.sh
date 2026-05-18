@@ -104,8 +104,9 @@ fi
 # =============================================================================
 
 MODELS_ROOT="/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/compilation_Benchmark/models"
-BENCH_DIR="/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/time_Benchmark"
-SCRIPT_DIR="${BENCH_DIR}"
+# Workspace root -- derived from this script location (benchmarking/ subdir)
+BENCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="${BENCH_DIR}/scripts"
 DATA_ROOT="/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2"
 GRID="CARRA2"
 

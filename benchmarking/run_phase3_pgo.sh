@@ -90,8 +90,9 @@ MODELS_ROOT="/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/compila
 REFERENCE_MODEL="${MODELS_ROOT}/test_Hamish"
 SWITCH_FILE="${REFERENCE_MODEL}/WW3/model/bin/switch_dnora"
 
-BENCH_DIR="/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/time_Benchmark"
-SCRIPT_DIR="${BENCH_DIR}"
+# Workspace root -- derived from this script location (benchmarking/ subdir)
+BENCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="${BENCH_DIR}/scripts"
 CONFIG_DIR="${BENCH_DIR}/configs/oneVar_noSaving"
 
 # Slurm layout — identical to Phase 1/2 for fair comparison

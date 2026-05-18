@@ -1,27 +1,47 @@
-/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/const/grid
-# WW3 Benchmark Framework
+# WW3 Benchmark & Calibration Framework
  
 A structured environment for running, comparing, and logging WW3 experiments
 across different model configurations, compiler settings, and HPC parameters.
- 
+Also includes a compiler benchmarking suite (Phases 1–4) for optimising WW3
+on AMD EPYC 9005 (Genoa/Zen 4) via Intel oneAPI.
+
 Framework version: **2.3** | Cluster: **Fahrenheit** (Intel oneAPI MPI) | MPI launcher: `mpprun`
 ---
 
 ## Directory Structure
 
 ```
-time_Benchmark/
-├── setup.sh              # Step 1 — initialise a new experiment
-├── run_exp.sh            # Step 2 — submit jobs and chain dependencies
-├── check_exp.sh          # Diagnose any experiment without resubmitting
-├── run_shel.job          # WW3 MPI job (called by run_exp.sh)
-├── prep.job              # Preprocessing: ww3_grid + ww3_prnc
-├── post.job              # Postprocessing: ww3_ounf (opt-in via --post)
-├── log_performance.sh    # Post-run metrics collection
-├── benchmark_summary.csv # Auto-generated master results table (schema v2.3)
+WW3_compilation/
+├── scripts/
+│   ├── setup.sh              # Step 1 — initialise a new experiment
+│   ├── run_exp.sh            # Step 2 — submit jobs and chain dependencies
+│   ├── check_exp.sh          # Diagnose any experiment without resubmitting
+│   └── log_performance.sh    # Post-run metrics collection
+├── jobs/
+│   ├── run_shel.job          # WW3 MPI job (called by run_exp.sh)
+│   ├── prep.job              # Preprocessing: ww3_grid + ww3_prnc
+│   └── post.job              # Postprocessing: ww3_ounf (opt-in via --post)
+├── benchmarking/             # Compiler & runtime optimisation study (Phases 1–4)
+│   ├── README.md
+│   ├── run_flag_experiments.sh      # Phase 1: single-flag ablation
+│   ├── run_phase2_experiments.sh    # Phase 2: flag combinations
+│   ├── run_phase3_pgo.sh            # Phase 3: AVX2 + PGO
+│   ├── run_phase4_dtxy.sh           # Phase 4: propagation timestep
+│   ├── run_phase4_mpi_pinning.sh    # Phase 4: MPI process affinity
+│   ├── run_phase4_omph.sh           # Phase 4: MPI+OpenMP hybrid
+│   ├── phase2_experiments.txt       # Experiment definitions for Phase 2
+│   └── phase4_knowledge.md          # Runtime optimisation notes
+├── configs/                  # Namelist configs + config manager
+│   ├── manage_config.sh
+│   ├── REGISTRY.md / REGISTRY_SUMMARY.md
+│   ├── nml_files_template/
+│   └── CARRA2_exp_1/         # Baseline config (tracked in git)
+├── docs/
+│   └── prompt.md             # Context document for AI-assisted work
+├── benchmark_summary.csv     # Auto-generated master results table (schema v2.3)
 └── README.md
  
-└── experiments/
+└── experiments/              # gitignored — created at runtime by setup.sh
     └── <exp_name>/
         ├── exp_config.sh         # Single source of truth — sourced by all jobs
         ├── work/                 # Input symlinks + copied namelists
@@ -48,17 +68,39 @@ This framework was developed to standardize and automate WW3 benchmark experimen
 - physics parameterizations
 - grid setups
 - computational scaling studies
+
+---
+
+## Compiler Benchmarking Suite
+
+The `benchmarking/` directory contains a systematic study of Intel oneAPI compiler
+flags and runtime parameters on AMD EPYC 9005 (Zen 4). See
+[benchmarking/README.md](benchmarking/README.md) for full details.
+
+Best result: **290 s** (Phase 4, OpenMP hybrid varB: 60 tasks × 2 threads, async I/O off)
+vs reference **417 s** — a **30 % speedup**.
+
+```bash
+# Dry-run the Phase 1 flag ablation
+./benchmarking/run_flag_experiments.sh --dry-run
+
+# Run Phase 2 (edit phase2_experiments.txt first)
+./benchmarking/run_phase2_experiments.sh
+```
+
+---
+
 ## Quickstart
 
 ### 1. Initialise a new experiment
  
 ```bash
-./setup.sh \
+./scripts/setup.sh \
     -e CARRA2_ref_oneVar \
     -w /home/sm_lenal/programs/compiling/from_waveXtrems/WW3 \
     -g CARRA2 \
     -s dnora \
-    -c configs/oneVar_noSaving/ \
+    -c configs/CARRA2_exp_1/ \
     -t "scaling,ref"
 ```
  
@@ -102,16 +144,16 @@ cp /path/to/ww3_shel_1d.nml    experiments/CARRA2_ref_oneVar/work/
  
 ```bash
 # Classic: explicit nodes × tasks/node
-./run_exp.sh -e CARRA2_ref_oneVar -N 12 -n 56 -t 01:00:00 -d 10h
+./scripts/run_exp.sh -e CARRA2_ref_oneVar -N 12 -n 56 -t 01:00:00 -d 10h
  
 # Flexible: total tasks, let Slurm pick nodes
-./run_exp.sh -e CARRA2_ref_oneVar --ntasks 672 -d 10h
+./scripts/run_exp.sh -e CARRA2_ref_oneVar --ntasks 672 -d 10h
  
 # With memory control (recommended on Fahrenheit)
-./run_exp.sh -e CARRA2_ref_oneVar -N 16 -n 63 -d 10h --mem-per-cpu 0
+./scripts/run_exp.sh -e CARRA2_ref_oneVar -N 16 -n 63 -d 10h --mem-per-cpu 0
  
 # With postprocessing
-./run_exp.sh -e CARRA2_ref_oneVar -N 12 -n 56 -d 1d --post
+./scripts/run_exp.sh -e CARRA2_ref_oneVar -N 12 -n 56 -d 1d --post
 ```
  
 | Flag | Description | Default |
@@ -137,9 +179,9 @@ cp /path/to/ww3_shel_1d.nml    experiments/CARRA2_ref_oneVar/work/
 ### 3. Diagnose an experiment
  
 ```bash
-./check_exp.sh -e CARRA2_ref_oneVar       # summary
-./check_exp.sh -e CARRA2_ref_oneVar -v    # verbose (full log tails)
-./check_exp.sh -e CARRA2_ref_oneVar -j 36239  # query a specific job ID
+./scripts/check_exp.sh -e CARRA2_ref_oneVar       # summary
+./scripts/check_exp.sh -e CARRA2_ref_oneVar -v    # verbose (full log tails)
+./scripts/check_exp.sh -e CARRA2_ref_oneVar -j 36239  # query a specific job ID
 ```
  
 `check_exp.sh` inspects without resubmitting: directory structure, symlink health,
@@ -214,8 +256,8 @@ Status is determined from two sources and reconciled:
  
 ```bash
 for N in 4 8 12 16; do
-    ./setup.sh -e scale_${N}n -g CARRA2 -s dnora -c configs/oneVar_noSaving/ -t "scaling,ref"
-    ./run_exp.sh -e scale_${N}n -N $N -n 56 -d 10h --mem-per-cpu 0
+    ./scripts/setup.sh -e scale_${N}n -g CARRA2 -s dnora -c configs/CARRA2_exp_1/ -t "scaling,ref"
+    ./scripts/run_exp.sh -e scale_${N}n -N $N -n 56 -d 10h --mem-per-cpu 0
 done
 column -t -s, benchmark_summary.csv
 ```
@@ -223,9 +265,9 @@ column -t -s, benchmark_summary.csv
 ### Physics Comparison (different WW3 builds)
  
 ```bash
-./setup.sh -e CARRA2_PR2_UQ \
+./scripts/setup.sh -e CARRA2_PR2_UQ \
     -w /home/sm_lenal/programs/compiling/PR2_UQ/WW3 \
-    -s PR2_UQ -g CARRA2 -c configs/oneVar_noSaving/ -t "physics,PR2"
+    -s PR2_UQ -g CARRA2 -c configs/CARRA2_exp_1/ -t "physics,PR2"
  
 ./setup.sh -e CARRA2_PR3_UNO \
     -w /home/sm_lenal/programs/compiling/PR3_UNO/WW3 \
