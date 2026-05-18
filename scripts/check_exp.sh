@@ -19,9 +19,8 @@
 #   6. Flags common problems with actionable advice
 # =============================================================================
 
-set -uo pipefail
-
-BENCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Workspace root (parent of this scripts/ directory)
+BENCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 EXP_NAME=""
 JOB_ID=""
@@ -88,7 +87,7 @@ section "1. Directory Structure"
 # --------------------------------------------------------------------------
 for d in "${EXP_DIR}" "${WORK_DIR}" "${LOGS_DIR}" "${META_DIR}" "${RUNTIME_DIR}" "${SETUP_DIR}"; do
     if [[ -d "${d}" ]]; then
-        ok "${d##*/EXP_NAME}"
+        ok "${d##*/}"
     else
         issue "Missing: ${d}"
     fi

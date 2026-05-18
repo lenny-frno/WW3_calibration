@@ -2,7 +2,7 @@
 # =============================================================================
 # run_shel.job — WW3 ww3_shel MPI job
 # =============================================================================
-# Version: 2.2
+# Version: 2.3
 #
 # Called by run_exp.sh via sbatch — do not submit directly.
 # Arguments passed via sbatch command line:
@@ -14,8 +14,6 @@
 # =============================================================================
 #SBATCH --account=eu-interchange
 # (remaining SBATCH params set dynamically by run_exp.sh)
-
-set -euo pipefail
 
 EXP_DIR="${1}"
 WORK_DIR="${2}"
@@ -36,19 +34,26 @@ ACTUAL_NNODES="${SLURM_NNODES:-unknown}"
 ACTUAL_NTASKS_PER_NODE="${SLURM_NTASKS_PER_NODE:-auto}"   # 'auto' = Slurm chose layout
 ACTUAL_CPUS_PER_TASK="${SLURM_CPUS_PER_TASK:-${CPUS_PER_TASK}}"
 
+# Guard against non-numeric ACTUAL_NTASKS before arithmetic
+if [[ "${ACTUAL_NTASKS}" =~ ^[0-9]+$ ]] && [[ "${ACTUAL_CPUS_PER_TASK}" =~ ^[0-9]+$ ]]; then
+    TOTAL_CORES_DISPLAY=$(( ACTUAL_NTASKS * ACTUAL_CPUS_PER_TASK ))
+else
+    TOTAL_CORES_DISPLAY="unknown"
+fi
+
 echo "============================================================"
-echo " WW3 ww3_shel job  (framework v2.2)"
+echo " WW3 ww3_shel job  (framework v2.3)"
 echo "============================================================"
 echo "  Job ID        : ${SLURM_JOB_ID:-unknown}"
 echo "  Nodes         : ${ACTUAL_NNODES}"
 echo "  Tasks/node    : ${ACTUAL_NTASKS_PER_NODE}"
 echo "  Total tasks   : ${ACTUAL_NTASKS}"
 echo "  CPUs/task     : ${ACTUAL_CPUS_PER_TASK}"
-echo "  Total cores   : $(( ${ACTUAL_NTASKS} * ${ACTUAL_CPUS_PER_TASK} )) (if tasks known)"
+echo "  Total cores   : ${TOTAL_CORES_DISPLAY}"
 echo "  Work dir      : ${WORK_DIR}"
 echo "  Sim duration  : ${SIM_DURATION}"
 echo "  Start         : $(date --iso-8601=seconds)"
-echo "============================================================"
+echo "=============================================================="
 
 # --------------------------------------------------------------------------
 # Load experiment environment
@@ -60,9 +65,12 @@ if [[ ! -f "${ENV_FILE}" ]]; then
 fi
 source "${ENV_FILE}"
 
-# Override OpenMP threads from run_exp.sh
-export OMP_NUM_THREADS="${ACTUAL_CPUS_PER_TASK}"
-echo "  OpenMP threads per rank: ${OMP_NUM_THREADS}"
+# Override OpenMP threads:
+# WW3_OMP_THREADS in env.sh takes priority (set by OMPH experiments to keep
+# the async-progress thread on a separate CPU).
+# Falls back to ACTUAL_CPUS_PER_TASK for standard (non-OMPH) runs.
+export OMP_NUM_THREADS="${WW3_OMP_THREADS:-${ACTUAL_CPUS_PER_TASK}}"
+echo "  OpenMP threads per rank: ${OMP_NUM_THREADS}${WW3_OMP_THREADS:+ (WW3_OMP_THREADS override active)}"
 
 # --------------------------------------------------------------------------
 # Environment debug block
@@ -100,8 +108,9 @@ done
 echo "Selecting namelist for duration: ${SIM_DURATION}"
 case "${SIM_DURATION}" in
     1h)  NML_SRC="ww3_shel_1h.nml"  ;;
-    10h)  NML_SRC="ww3_shel_10h.nml"  ;;
+    10h) NML_SRC="ww3_shel_10h.nml" ;;
     1d)  NML_SRC="ww3_shel_1d.nml"  ;;
+    3d)  NML_SRC="ww3_shel_3d.nml"  ;;
     7d)  NML_SRC="ww3_shel_7d.nml"  ;;
     *)
         echo "WARNING: Unknown duration '${SIM_DURATION}', using ww3_shel.nml as-is"
@@ -123,8 +132,9 @@ fi
 # --------------------------------------------------------------------------
 case "${SIM_DURATION}" in
     1h)  SIM_DAYS=0.04167 ;;
-    10h)  SIM_DAYS=0.4167    ;;
+    10h) SIM_DAYS=0.4167  ;;
     1d)  SIM_DAYS=1.0     ;;
+    3d)  SIM_DAYS=3.0     ;;
     7d)  SIM_DAYS=7.0     ;;
     *)   SIM_DAYS=1.0     ;;
 esac
@@ -132,24 +142,30 @@ esac
 # --------------------------------------------------------------------------
 # Run ww3_shel
 # --------------------------------------------------------------------------
-trap 'touch "${WORK_DIR}/run.shel.failed"; echo "ERROR: ww3_shel failed"' ERR
+mkdir -p "${RUNTIME_DIR}"
+TIMING_FILE="${RUNTIME_DIR}/timing_raw.txt"
 
 RUN_START=$(date +%s)
 RUN_START_ISO=$(date --iso-8601=seconds)
 echo "WW3 start: ${RUN_START_ISO}"
 
 mpprun "${WORK_DIR}/ww3_shel"
+WW3_EXIT_CODE=$?
 
 RUN_END=$(date +%s)
 RUN_END_ISO=$(date --iso-8601=seconds)
 ELAPSED=$(( RUN_END - RUN_START ))
 ELAPSED_MIN=$(echo "scale=2; ${ELAPSED}/60" | bc)
 
-# Guard against zero elapsed (failed immediately)
+# Guard against zero elapsed
 if [[ "${ELAPSED}" -gt 0 ]]; then
     THROUGHPUT=$(echo "scale=4; ${SIM_DAYS} * 3600 / ${ELAPSED}" | bc)
 else
     THROUGHPUT="N/A"
+fi
+
+if [[ "${WW3_EXIT_CODE}" -ne 0 ]]; then
+    WW3_STATUS="CRASHED"
 fi
 
 echo ""
@@ -167,21 +183,23 @@ echo "============================================================"
 # Check WW3 completed cleanly
 # --------------------------------------------------------------------------
 if grep -q "FATAL ERROR" test001.ww3 2>/dev/null; then
+    WW3_STATUS="FATAL_ERROR"
     echo "ERROR: WW3 reported a FATAL ERROR"
     tail -30 test001.ww3
-    exit 1
+elif grep -q "End of program" log.ww3 2>/dev/null; then
+    WW3_STATUS="SUCCESS"
 fi
-LOG_FILE="${WORK_DIR}/../logs/shel.${SLURM_JOB_ID}.LOG"
-if ! grep -q "End of program" LOG_FILE 2>/dev/null; then
-    echo "WARNING: ' End of program' not found in log — run may be incomplete"
+LOG_FILE="${WORK_DIR}/../logs/shel.${SLURM_JOB_ID:-0}.LOG"
+if [[ -f "${LOG_FILE}" ]] && ! grep -q "End of program" "${LOG_FILE}" 2>/dev/null; then
+    echo "WARNING: 'End of program' not found in shel log — run may be incomplete"
 fi
 
-# --------------------------------------------------------------------------
-# Save timing to metadata/runtime/timing_raw.txt
-# *** KEY FIX: must match the path log_performance.sh reads from ***
-# --------------------------------------------------------------------------
-mkdir -p "${RUNTIME_DIR}"
-TIMING_FILE="${RUNTIME_DIR}/timing_raw.txt"
+# Compute total cores safely
+if [[ "${ACTUAL_NTASKS}" =~ ^[0-9]+$ ]] && [[ "${ACTUAL_CPUS_PER_TASK}" =~ ^[0-9]+$ ]]; then
+    TOTAL_CORES_VAL=$(( ACTUAL_NTASKS * ACTUAL_CPUS_PER_TASK ))
+else
+    TOTAL_CORES_VAL="unknown"
+fi
 
 cat > "${TIMING_FILE}" << EOF
 # Written by run_shel.job at: ${RUN_END_ISO}
@@ -190,7 +208,7 @@ NODES=${ACTUAL_NNODES}
 NTASKS_PER_NODE=${ACTUAL_NTASKS_PER_NODE}
 TOTAL_TASKS=${ACTUAL_NTASKS}
 CPUS_PER_TASK=${ACTUAL_CPUS_PER_TASK}
-TOTAL_CORES=$(( ${ACTUAL_NTASKS} * ${ACTUAL_CPUS_PER_TASK} ))
+TOTAL_CORES=${TOTAL_CORES_VAL}
 SIM_DURATION=${SIM_DURATION}
 SIM_DAYS=${SIM_DAYS}
 RUN_START_ISO=${RUN_START_ISO}
@@ -198,8 +216,14 @@ RUN_END_ISO=${RUN_END_ISO}
 ELAPSED_SECONDS=${ELAPSED}
 ELAPSED_MINUTES=${ELAPSED_MIN}
 THROUGHPUT_DAYS_PER_HOUR=${THROUGHPUT}
+WW3_STATUS=${WW3_STATUS}
+WW3_EXIT_CODE=${WW3_EXIT_CODE}
 EOF
 
 echo "  Timing saved: ${TIMING_FILE}"
 echo "Done"
 
+# Exit with non-zero if WW3 itself failed (after timing is safely written)
+if [[ "${WW3_EXIT_CODE}" -ne 0 ]]; then
+    exit "${WW3_EXIT_CODE}"
+fi

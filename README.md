@@ -1,3 +1,4 @@
+/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/const/grid
 # WW3 Benchmark Framework
  
 A structured environment for running, comparing, and logging WW3 experiments
@@ -78,12 +79,24 @@ This framework was developed to standardize and automate WW3 benchmark experimen
 After setup, namelists can also be copied manually if `-c` is not given:
  
 ```bash
-cp /path/to/ww3_grid.nml       experiments/CARRA2_ref_oneVar/work/
 cp /path/to/ww3_prnc.nml       experiments/CARRA2_ref_oneVar/work/
 cp /path/to/ww3_shel_1h.nml    experiments/CARRA2_ref_oneVar/work/
 cp /path/to/ww3_shel_10h.nml   experiments/CARRA2_ref_oneVar/work/
 cp /path/to/ww3_shel_1d.nml    experiments/CARRA2_ref_oneVar/work/
 ```
+
+> **Namelist locations — important distinction:**
+>
+> | Namelist | Location | Notes |
+> |----------|----------|-------|
+> | `ww3_grid.nml` | `DATA_ROOT/const/grid/<GRID>/` | Defines spectral resolution, timesteps, and grid topology. Shared across experiments using the same grid. **Do not put in `configs/`.** |
+> | `ww3_prnc.nml`, `ww3_shel.nml`, etc. | `configs/<config_name>/` | Experiment-specific; copied by `setup.sh -c`. |
+>
+> For CARRA2 on Fahrenheit:
+> ```bash
+> ls /nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/const/grid/CARRA2/
+> # → ww3_grid.nml  (and grid binary files)
+> ```
 
 ### 2. Submit the experiment
  
