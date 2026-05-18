@@ -25,15 +25,15 @@
 !     DOMAIN%PSHARE =  F  ! Flag for grids sharing dedicated output processes.
 !     DOMAIN%FLGHG1 =  F  ! Flag for masking computation in two-way nesting
 !     DOMAIN%FLGHG2 =  F  ! Flag for masking at printout time
-!     DOMAIN%START  = '19680606 000000'  ! Start date for the entire model
-!     DOMAIN%STOP   = '19680607 000000'  ! Stop date for the entire model
+!     DOMAIN%START  = '{{START_DATE}}'  ! Start date for the entire model
+!     DOMAIN%STOP   = '{{END_DATE}}'  ! Stop date for the entire model
 ! -------------------------------------------------------------------- !
 &DOMAIN_NML
   DOMAIN%NRINP  = 3
   DOMAIN%NRGRD  = 5
   DOMAIN%UNIPTS = T
-  DOMAIN%START  = '20100101 120000'
-  DOMAIN%STOP   = '20101231 000000'
+  DOMAIN%START  = '{{START_DATE}}'
+  DOMAIN%STOP   = '{{END_DATE}}'
 /
 
 
@@ -245,9 +245,9 @@
 !
 ! * namelist must be terminated with /
 ! * definitions & defaults:
-!     ALLDATE%FIELD%START         =  '19680606 000000'
-!     ALLDATE%FIELD%STRIDE        =  '0'
-!     ALLDATE%FIELD%STOP          =  '19680607 000000'
+!     ALLDATE%FIELD%START         =  '{{START_DATE}}'
+!     ALLDATE%FIELD%STRIDE        =  '{{OUTPUT_STRIDE}}'
+!     ALLDATE%FIELD%STOP          =  '{{END_DATE}}'
 !     ALLDATE%POINT%START         =  '19680606 000000'
 !     ALLDATE%POINT%STRIDE        =  '0'
 !     ALLDATE%POINT%STOP          =  '19680607 000000'
@@ -269,9 +269,9 @@
 !     IDATE(3)%PARTITION%START    =  '19680606 000000'
 ! -------------------------------------------------------------------- !
 &OUTPUT_DATE_NML
-  ALLDATE%FIELD%START         = '20100101 000000'
-  ALLDATE%FIELD%STRIDE        = '3600'
-  ALLDATE%FIELD%STOP          = '20101231 000000'
+  ALLDATE%FIELD%START         = '{{START_DATE}}'
+  ALLDATE%FIELD%STRIDE        = '{{OUTPUT_STRIDE}}'
+  ALLDATE%FIELD%STOP          = '{{END_DATE}}'
   ALLDATE%POINT%START         = '20100101 000000'
   ALLDATE%POINT%STRIDE        = '3600'
   ALLDATE%POINT%STOP          = '20101231 000000'

@@ -16,13 +16,13 @@
 ! * namelist must be terminated with /
 ! * definitions & defaults:
 !     DOMAIN%IOSTYP =  1                 ! Output server type
-!     DOMAIN%START  = '19680606 000000'  ! Start date for the entire model 
-!     DOMAIN%STOP   = '19680607 000000'  ! Stop date for the entire model
+!     DOMAIN%START  = '{{START_DATE}}'  ! Start date for the entire model 
+!     DOMAIN%STOP   = '{{END_DATE}}'  ! Stop date for the entire model
 ! -------------------------------------------------------------------- !
 &DOMAIN_NML
   DOMAIN%IOSTYP  = 1
-  DOMAIN%START  = '20210101 000000'
-  DOMAIN%STOP   = '20210131 230000'
+  DOMAIN%START  = '{{START_DATE}}'
+  DOMAIN%STOP   = '{{END_DATE}}'
 /
 ! -------------------------------------------------------------------- !
 ! Define each forcing via the INPUT_NML namelist
@@ -239,7 +239,7 @@
 !
 ! -------------------------------------------------------------------- !
 &OUTPUT_TYPE_NML
-  TYPE%FIELD%LIST     = 'HS'
+  TYPE%FIELD%LIST     = '{{OUTPUT_FIELDS}}'
 /
 ! -------------------------------------------------------------------- !
 ! Define output dates via OUTPUT_DATE_NML namelist
@@ -250,9 +250,9 @@
 !
 ! * namelist must be terminated with /
 ! * definitions & defaults:
-!     DATE%FIELD%START         =  '19680606 000000'
-!     DATE%FIELD%STRIDE        =  '0'
-!     DATE%FIELD%STOP          =  '19680607 000000'
+!     DATE%FIELD%START         =  '{{START_DATE}}'
+!     DATE%FIELD%STRIDE        =  '{{OUTPUT_STRIDE}}'
+!     DATE%FIELD%STOP          =  '{{END_DATE}}'
 !     DATE%POINT%START         =  '19680606 000000'
 !     DATE%POINT%STRIDE        =  '0'
 !     DATE%POINT%STOP          =  '19680607 000000'
@@ -275,9 +275,9 @@
 !     DATE%RESTART             =  '19680606 000000' '0' '19680607 000000'
 ! -------------------------------------------------------------------- !
 &OUTPUT_DATE_NML
-  DATE%FIELD%START         = '20210101 000000'
-  DATE%FIELD%STOP          = '20210131 230000'
-  DATE%FIELD%STRIDE        = '3600'
+  DATE%FIELD%START         = '{{START_DATE}}'
+  DATE%FIELD%STOP          = '{{END_DATE}}'
+  DATE%FIELD%STRIDE        = '{{OUTPUT_STRIDE}}'
 /
 ! -------------------------------------------------------------------- !
 ! Define homogeneous input via HOMOG_COUNT_NML and HOMOG_INPUT_NML namelist

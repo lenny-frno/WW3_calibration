@@ -11,8 +11,8 @@
 !
 ! * namelist must be terminated with /
 ! * definitions & defaults:
-!     FORCING%TIMESTART            = '19000101 000000'  ! Start date for the forcing field
-!     FORCING%TIMESTOP             = '29001231 000000'  ! Stop date for the forcing field
+!     FORCING%TIMESTART            = '{{START_DATE}}'  ! Start date for the forcing field
+!     FORCING%TIMESTOP             = '{{END_DATE}}'  ! Stop date for the forcing field
 !
 !     FORCING%FIELD%ICE_PARAM1     = F           ! Ice thickness                      (1-component)
 !     FORCING%FIELD%ICE_PARAM2     = F           ! Ice viscosity                      (1-component)
@@ -39,8 +39,8 @@
 FORCING%FIELD%WINDS          = T
 FORCING%GRID%ASIS            = F
 FORCING%GRID%LATLON          = T
-FORCING%TIMESTART            = '20210116 030000'
-FORCING%TIMESTOP             = '20210123 000000'
+FORCING%TIMESTART            = '{{START_DATE}}'
+FORCING%TIMESTOP             = '{{END_DATE}}'
 
 /
 ! -------------------------------------------------------------------- !

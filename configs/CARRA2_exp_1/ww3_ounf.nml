@@ -18,8 +18,8 @@
 !
 ! * namelist must be terminated with /
 ! * definitions & defaults:
-!     FIELD%TIMESTART            = '19000101 000000'  ! Stop date for the output field
-!     FIELD%TIMESTRIDE           = '0'                ! Time stride for the output field
+!     FIELD%TIMESTART            = '{{START_DATE}}'  ! Stop date for the output field
+!     FIELD%TIMESTRIDE           = '{{OUTPUT_STRIDE}}'                ! Time stride for the output field
 !     FIELD%TIMESTOP             = '29001231 000000'  ! Stop date for the output field
 !     FIELD%TIMECOUNT            = '1000000000'       ! Number of time steps
 !     FIELD%TIMESPLIT            = 6                  ! [4(yearly),6(monthly),8(daily),10(hourly)]
@@ -29,9 +29,9 @@
 !     FIELD%TYPE                 = 3                  ! [2 = SHORT, 3 = it depends , 4 = REAL]
 ! -------------------------------------------------------------------- !
 &FIELD_NML
-  FIELD%LIST     = 'HS'
-  FIELD%TIMESTART  = '20210101 000000'
-  FIELD%TIMESTRIDE  = '3600'
+  FIELD%LIST     = '{{OUTPUT_FIELDS}}'
+  FIELD%TIMESTART  = '{{START_DATE}}'
+  FIELD%TIMESTRIDE  = '{{OUTPUT_STRIDE}}'
   FIELD%TIMESPLIT  = 6
 /
 ! -------------------------------------------------------------------- !
@@ -48,7 +48,7 @@
 ! -------------------------------------------------------------------- !
 &FILE_NML
   FILE%NETCDF     = 3
-  FILE%PREFIX	  = 'Wave_only_wind_CARRA2'
+  FILE%PREFIX     = '{{OUTPUT_PREFIX}}'
 /
 ! -------------------------------------------------------------------- !
 ! WAVEWATCH III - end of namelist                                      !

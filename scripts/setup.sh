@@ -17,6 +17,8 @@
 #   -P  Period name             (default: none — use -y/-m for manual date control)
 #                              Loads periods/<name>.period, overrides -y/-m,
 #                              substitutes {{START_DATE}}/{{END_DATE}} in namelists
+#   -X  KEY=VALUE              Substitute {{KEY}} with VALUE in all namelists
+#                              (repeatable; highest priority — overrides params.env)
 #   -f  Force overwrite existing experiment
 #   --dry-run                  Print actions without executing
 #
@@ -52,7 +54,8 @@ PERIOD_NAME=""         # optional named period (loads from periods/<name>.period
 FORCE=false
 DRY_RUN=false
 
-# Period-derived dates (populated when -P is used)
+# CLI parameter overrides (-X KEY=VALUE) — applied after params.env
+declare -A EXTRA_PARAMS
 START_DATE=""
 END_DATE=""
 PERIOD_DURATION_DAYS=""
@@ -75,7 +78,7 @@ else
     set --
 fi
  
-while getopts "w:e:y:m:D:s:g:c:t:f:P:" opt; do
+while getopts "w:e:y:m:D:s:g:c:t:f:P:X:" opt; do
     case $opt in
         w) WW3="$OPTARG" ;;
         e) EXP_NAME="$OPTARG" ;;
@@ -88,6 +91,7 @@ while getopts "w:e:y:m:D:s:g:c:t:f:P:" opt; do
         t) TAGS="$OPTARG" ;;
         f) FORCE=true ;;
         P) PERIOD_NAME="$OPTARG" ;;
+        X) KEY="${OPTARG%%=*}"; VAL="${OPTARG#*=}"; EXTRA_PARAMS["${KEY}"]="${VAL}" ;;
         *) echo "Unknown option: -$opt"; exit 1 ;;
     esac
 done
@@ -291,6 +295,41 @@ fi
 # --------------------------------------------------------------------------
 echo "[5/7] Setting up namelists..."
 if [[ -n "${CONFIG_DIR}" ]]; then
+    # ------------------------------------------------------------------
+    # Build substitution map (priority: CLI -X > params.env > period)
+    # ------------------------------------------------------------------
+    declare -A SUBST_PARAMS
+
+    # 1. Period dates (set by -P)
+    [[ -n "${START_DATE}" ]] && SUBST_PARAMS[START_DATE]="${START_DATE}"
+    [[ -n "${END_DATE}"   ]] && SUBST_PARAMS[END_DATE]="${END_DATE}"
+    [[ -n "${YEAR}"       ]] && SUBST_PARAMS[YEAR]="${YEAR}"
+    [[ -n "${MONTH}"      ]] && SUBST_PARAMS[MONTH]="${MONTH}"
+
+    # 2. Load params.env from config dir (if present)
+    if [[ -f "${CONFIG_DIR}/params.env" ]]; then
+        while IFS='=' read -r _pk _pv; do
+            [[ -z "${_pk}" || "${_pk}" =~ ^[[:space:]]*# ]] && continue
+            _pk="${_pk%%[[:space:]]*}"
+            _pv="${_pv#[[:space:]]}"
+            _pv="${_pv%%[[:space:]#]*}"
+            [[ -n "${_pk}" ]] && SUBST_PARAMS["${_pk}"]="${_pv}"
+        done < "${CONFIG_DIR}/params.env"
+        echo "      params.env  : ${#SUBST_PARAMS[@]} substitutions loaded"
+    fi
+
+    # 3. CLI -X overrides (highest priority)
+    for _pk in "${!EXTRA_PARAMS[@]}"; do
+        SUBST_PARAMS["${_pk}"]="${EXTRA_PARAMS[${_pk}]}"
+    done
+    [[ ${#EXTRA_PARAMS[@]} -gt 0 ]] && echo "      -X overrides: ${!EXTRA_PARAMS[*]}"
+
+    # Build sed args array from the combined map
+    SED_ARGS=()
+    for _pk in "${!SUBST_PARAMS[@]}"; do
+        SED_ARGS+=(-e "s|{{${_pk}}}|${SUBST_PARAMS[${_pk}]}|g")
+    done
+
     NML_LIST=(ww3_prnc.nml ww3_prnc_wind.nml namelist.nml ww3_shel.nml \
               ww3_shel_1h.nml ww3_shel_10h.nml \
               ww3_shel_1d.nml ww3_shel_3d.nml ww3_shel_7d.nml ww3_ounf.nml \
@@ -301,23 +340,17 @@ if [[ -n "${CONFIG_DIR}" ]]; then
         src="${CONFIG_DIR}/${nml}"
         if [[ -f "${src}" ]]; then
             run cp "${src}" "${WORK_DIR}/${nml}"
-            # Substitute period placeholders when -P is used
-            if [[ -n "${PERIOD_NAME}" && "${DRY_RUN}" == false ]]; then
-                sed -i \
-                    -e "s|{{START_DATE}}|${START_DATE}|g" \
-                    -e "s|{{END_DATE}}|${END_DATE}|g" \
-                    -e "s|{{YEAR}}|${YEAR}|g" \
-                    -e "s|{{MONTH}}|${MONTH}|g" \
-                    "${WORK_DIR}/${nml}" 2>/dev/null || true
+            # Apply all substitutions (dates + physics params + any -X overrides)
+            if [[ ${#SED_ARGS[@]} -gt 0 && "${DRY_RUN}" == false ]]; then
+                sed -i "${SED_ARGS[@]}" "${WORK_DIR}/${nml}" 2>/dev/null || true
             fi
             echo "      copied: ${nml}"
             (( copied++ )) || true
         fi
     done
     echo "      ${copied} namelist(s) copied from ${CONFIG_DIR}"
-    if [[ -n "${PERIOD_NAME}" && "${DRY_RUN}" == false ]]; then
-        echo "      {{START_DATE}}/{{END_DATE}} placeholders substituted (period: ${PERIOD_NAME})"
-    fi
+    [[ ${#SUBST_PARAMS[@]} -gt 0 && "${DRY_RUN}" == false ]] && \
+        echo "      ${#SUBST_PARAMS[@]} placeholder(s) substituted"
 else
     echo "      No -c config dir — copy namelists manually to ${WORK_DIR}/"
 fi
@@ -522,6 +555,24 @@ echo "      saved: ${ENV_FILE}"
 # ------------------------------------------------------------------
 chmod -R a-w "${SETUP_DIR}"
 chmod -R u+rwX "${RUNTIME_DIR}"
+
+# Save resolved substitution params to metadata (provenance)
+if [[ ${#SUBST_PARAMS[@]} -gt 0 ]]; then
+    PARAMS_RECORD="${SETUP_DIR}/params.env"
+    {
+        echo "# Resolved substitution parameters (setup.sh v${FRAMEWORK_VERSION})"
+        echo "# Config : ${CONFIG_DIR:-manual}"
+        echo "# Period : ${PERIOD_NAME:-none}"
+        echo "# Date   : $(date --iso-8601=seconds)"
+        echo "# -X CLI overrides: ${EXTRA_PARAMS[*]:-none}"
+        echo "#"
+        for _pk in "${!SUBST_PARAMS[@]}"; do
+            echo "${_pk}=${SUBST_PARAMS[${_pk}]}"
+        done
+    } > "${PARAMS_RECORD}"
+    chmod -w "${PARAMS_RECORD}"
+    echo "      saved: ${PARAMS_RECORD}"
+fi
 fi  # end DRY_RUN guard
 
 
