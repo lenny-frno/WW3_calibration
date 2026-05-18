@@ -1,0 +1,24 @@
+# Experiments output (large, machine-generated)
+experiments/
+
+# WW3 source reference (external, tracked separately)
+WW3_ref/
+
+# Benchmark data — keep the CSV but not huge logs
+log_pgo.txt
+
+# HTML/asset dumps and email exports
+*.html
+*.pdf
+E-post*/
+
+# PGO / compiler profiling artefacts
+profmerge.log
+pgopti.*
+*.dyn
+*.spi
+
+# Editor / OS artefacts
+.DS_Store
+*.swp
+*~

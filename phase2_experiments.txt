@@ -1,0 +1,392 @@
+# =============================================================================
+# phase2_experiments.txt — Phase 2 experiment definitions
+# =============================================================================
+#
+# Edit this file to define your Phase 2 flag combination experiments, then run:
+#   bash run_phase2_experiments.sh -i phase2_experiments.txt --dry-run
+#   bash run_phase2_experiments.sh -i phase2_experiments.txt
+#
+# TWO FORMATS (may be mixed in this file)
+# ----------------------------------------
+#
+# Format A — additive: extra flags appended to the reference release block.
+#
+#   exp_name  FLAG [FLAG ...]
+#
+#   Use this for flags that are purely additive (not already in the reference).
+#   All listed flags are added to the release block on top of -O3.
+#   The script rejects:
+#     - exact duplicates of any reference token
+#     - semantically conflicting tokens (e.g. -fma conflicts with -no-fma)
+#
+# Format B — full specification: replaces both reference flag blocks.
+#
+#   exp_name | description | full_base_flags | full_release_flags
+#
+#   Use this when a BASE flag must be replaced (e.g. -ipo replacing -ip,
+#   -fma replacing -no-fma, -fp-model fast=2 replacing -fp-model precise).
+#   The fields are the complete flag strings, same syntax as Phase 1.
+#
+# REFERENCE FLAGS (for reference when writing Format B experiments)
+# -----------------------------------------------------------------
+# Base:    -no-fma -ip -g -traceback -i4 -real-size 32 -fp-model precise
+#          -assume byterecl -fno-alias -fno-fnalias
+# Release: -O3
+#          ( -sox appended automatically by cmake on Linux )
+#
+# PHASE 1 RESULTS — second batch (May 8, correct binaries), 10h run, N=16×60
+# ---------------------------------------------------------------------------
+# NOTE: The first batch (May 7) is INVALID — all jobs ran the same reference
+# binary due to a symlink bug. Values below are from the corrected second batch.
+#
+# Throughput in sim_days/h, sorted best → worst.  Δ% vs comp_ref (3.5974).
+#
+# exp_name      tp       delta    flag change
+# comp_fp_fast1 4.0653   +13.0%  — base: -fp-model fast=1 (replaces precise)
+# comp_fp_fast2 4.0653   +13.0%  — base: -fp-model fast=2 (replaces precise)
+# comp_O2       3.6857    +2.5%  — release: -O2
+# comp_ipo      3.6767    +2.2%  — base: -ipo (replaces -ip)
+# comp_unroll   3.6410    +1.2%  — release: -O3 -unroll-aggressive
+# comp_fma      3.6410    +1.2%  — base: -fma (replaces -no-fma)
+# comp_align    3.6322    +1.0%  — release: -O3 -align array64byte
+# comp_ref      3.5974    ref
+# comp_no_ip    3.5632    -0.9%  — base: -ip removed
+# comp_xHost    1.2627   -64.9%  ← DISQUALIFIED (ISA mismatch compile/compute nodes)
+#
+# PHASE 2 RESULTS — May 8, 10h run, N=16×60
+# ------------------------------------------
+# Throughput in sim_days/h, sorted best → worst.  Δ% vs comp_ref (3.5974).
+#
+# exp_name          tp       delta    flag combination
+# p2_fp2_ipo_unroll 4.0875  +13.62%  ← NEW BEST — fp_fast2 + ipo + unroll-aggressive
+# p2_fp2_ipo        4.0543  +12.70%  — fp_fast2 + ipo only (≈ fp_fast2 alone)
+# p2_fp1_ipo        4.0543  +12.70%  — fp_fast1 + ipo (same as fp_fast2+ipo)
+# p2_fp2_fma        4.0434  +12.40%  — fp_fast2 + fma (fma redundant; fp_fast2 subsumes it)
+# p2_fp2_unroll     4.0110  +11.50%  — fp_fast2 + unroll-aggressive (unroll hurts vs fp2+ipo+unroll?)
+# p2_fp2_O2_unroll  3.9476   +9.73%  — fp_fast2 + O2 + unroll (O2 degrades fp2)
+# p2_fp2_O2         3.9373   +9.45%  — fp_fast2 + O2 (O2 unexpectedly hurts fp2 combos)
+# p2_unroll_align   3.6322   +0.97%  — unroll + align without fp_fast (confirms fp-model dominates)
+# p2_fp2_ipo_xHost  2.6089  -27.48%  ← DISQUALIFIED (xHost ISA mismatch; ran despite being in file)
+#
+# KEY FINDINGS:
+#   - p2_fp2_ipo_unroll (367s) is the overall best: fp_fast2 + ipo + unroll = +13.6%
+#   - O2 HURTS when combined with fp_fast2 (fp2+O2=381s vs fp2 alone=369s; -3.3%)
+#     Hypothesis: -O3 extra loop transforms become beneficial once FP vectorisation is
+#     unlocked by fp_fast2; -O2 leaves that potential untapped.
+#   - ipo alone with fp_fast2 gives no gain vs fp_fast2 alone (370s vs 369s, noise)
+#   - Adding unroll to fp2+ipo nudges from 370s → 367s (+0.8%; marginal but real)
+#   - fp_fast1+ipo ≡ fp_fast2+ipo: both at 370s. The extra fast=2 relaxations add nothing.
+#   - fma is confirmed redundant alongside fp_fast2 (371s ≈ 369s, noise)
+#   - xHost disqualified again at 575s; even less catastrophic paired with ipo but still -27%
+#
+# SECOND PHASE 2 BATCH RESULTS — May 8, 10h run (completed same day)
+# ------------------------------------------------------------------
+# exp_name          tp       Δ%      seconds   notes
+# p2_fp2_O2_ipo     4.0875  +13.6%  367s      — O2+ipo combo; O2 hurts but ipo partially compensates: tied with fp2_ipo_unroll
+# p2_automake_equiv 4.0764  +13.4%  368s      — stripped ref (no fp-model, no debug): confirms fp-model precise is the culprit
+# p2_fp2_prefetch   4.0325  +12.1%  372s      — prefetch=4 marginal (+0.9% vs fp2 alone)
+# p2_fp2_align128   4.0217  +11.8%  373s      — 128-byte alignment neutral/marginal
+# p2_fp2_no_alias   4.0217  +11.8%  373s      — alias flags irrelevant alongside fast=2 (confirmed)
+# p2_fp2_streaming  3.7409   +3.9%  401s      ← HURTS (streaming stores force cache-bypass; bandwidth-limited WW3 suffers)
+# p2_no_debug       3.6322   +1.1%  413s      — removing -g/-traceback alone is neutral (debug flags free in isolation)
+#
+# PHASE 3 RESULTS — May 8, 10h run, N=16×60  (AVX2 and AVX-512)
+# ---------------------------------------------------------------
+# exp_name                        tp       Δ%      seconds   notes
+# p3_fp2_ipo_unroll_avx2_nd       4.2256  +17.4%  355s  ← NEW BEST: best Phase2 + AVX2 + no-debug
+# p3_fp2_ipo_unroll_avx2_vecabi   4.2138  +17.1%  356s  — + vecabi guard for SVML ABI
+# p3_fp2_ipo_unroll_avx2_align    4.2020  +16.8%  357s  — + array64byte alignment
+# p3_fp2_ipo_unroll_avx2          4.1670  +15.8%  360s  — base AVX2 (kept -g -traceback)
+# p3_fp2_ipo_unroll_avx512_safe   4.0217  +11.8%  373s  ← AVX-512 SLOWER than AVX2
+#
+# KEY FINDINGS from Phase 3:
+#   - AVX2 upgrade works but gain is modest: 367s→360s = +1.9% from AVX2 alone.
+#     Workload is more bandwidth-bound than expected; AVX2 helps compute-bound source
+#     terms (~40% of runtime), not the propagation solver (~60% bandwidth-bound).
+#   - Stripping -g/-traceback base flags DOES help in AVX2 context (+1.4%: 360→355s),
+#     even though p2_no_debug alone was nearly flat (+1.1% in SSE2). The AVX2 register
+#     allocator benefits more from the reduced debug-info overhead.
+#   - vecabi=cmdtarget worth 1s vs base AVX2 (prevents SSE2-ABI SVML calls in IPO context).
+#   - AVX-512 safe (373s) is SLOWER than AVX2 (360s). Intel ifort's AVX-512 code gen
+#     on AMD Zen4 is suboptimal: different micro-architectural assumptions cause
+#     increased latency vs the well-tuned AVX2 path. Skip aggressive AVX-512.
+#   - Streaming stores confirmed harmful at SSE2 (401s) and expected harmful at AVX2 too.
+#     Skip all streaming experiments.
+#   - OVERALL BEST: 355s (p3_fp2_ipo_unroll_avx2_nd) — but 300s goal is 55s away = 15.5% more.
+#
+# STATUS: 417s (ref) → 367s (Phase2) → 355s (Phase3A) — 14.9% below reference.
+# TO REACH 300s: need further 15.5% from 355s.
+# ONLY REMAINING LEVER: PGO (5-15% expected; ~303-337s range).
+# NEXT STEP: run p3_fp2_ipo_unroll_avx2_nd_vecabi (combine best nd + vecabi),
+#            then PGO on the best AVX2-nd result via run_phase3_pgo.sh.
+# =============================================================================
+
+
+# =============================================================================
+# PHASE 2/3 STRATEGY (FINAL — after all Phase 2 + Phase 3A/3B results)
+# ----------------------------------------------------------------------
+# CURRENT BEST: p3_fp2_ipo_unroll_avx2_nd at 355s
+# GOAL: 300s. Remaining gap: 55s = 15.5%.
+#
+# CONFIRMED effective flags (all additive over reference 417s):
+#   -fp-model fast=2  (+13%): single biggest gain, mandatory from here on
+#   -ipo              (+2.2%): cross-file inlining
+#   -unroll-aggressive (+1.2%): loop unrolling with fp_fast2
+#   -mavx2 -mfma      (+1.9%): AVX2 (no CPUID, safe on AMD Zen4)
+#   drop -g -traceback (+1.4% in AVX2 context): unintuitive but real
+#   -vecabi=cmdtarget (~+0.3%): SVML ABI guard for IPO cross-TU calls
+#
+# CONFIRMED harmful / redundant:
+#   -xHost: DISQUALIFIED (Intel CPUID dispatch → SSE2 on AMD)
+#   -O2 + fp_fast2: hurts (O3 transforms needed once FP vectorisation unlocked)
+#   -mavx512f/*: SLOWER on AMD Zen4 (Intel codegen assumptions differ)
+#   -qopt-streaming-stores=always: HURTS (forces cache-bypass; bandwidth-bound)
+#   -fma: redundant with fast=2
+#   -fno-alias flags: irrelevant alongside fast=2
+#   -align128: neutral vs -align64
+#
+# OPEN OPPORTUNITIES (unexplored):
+#   1. Combine nd + vecabi: not yet run;
+#      expected ~350-352s if gains are independent (+1.4% nd + +0.3% vecabi)
+#   2. PGO: the main remaining lever; 5-15% on top of best AVX2 → ~303-337s.
+#      The only path to sub-300s. Run after confirming nd+vecabi combination.
+#
+# PHASE 3 CANDIDATES (beyond current experiments):
+#   - p3_fp2_ipo_unroll_prefetch4: best so far + software prefetch
+#   - p3_fp2_ipo_unroll_streaming: best so far + non-temporal stores
+#   - p3_fp2_ipo_unroll_align128: best so far + 128-byte alignment
+#
+# EXCLUSIONS (confirmed disqualified):
+#   -xHost: disqualified in both Phase 1 (1188s) and Phase 2 (575s). ISA mismatch.
+#   -O2 with fp_fast: confirmed counter-productive in Phase 2.
+#   -fma with fp_fast: confirmed redundant.
+#
+# FORMAT A EXPERIMENTS (additive release flags only, no base change)
+# ------------------------------------------------------------------
+# =============================================================================
+
+# Sanity: non-fp additive combos (do they stack at all?)
+p2_unroll_align   -unroll-aggressive -align array64byte
+
+
+# =============================================================================
+# FORMAT B EXPERIMENTS — fp-model relaxation × other best flags
+# Base template: -no-fma -ip -g -traceback -i4 -real-size 32 -fp-model <LEVEL>
+#                -assume byterecl -fno-alias -fno-fnalias
+# Replace -fp-model precise with fast=1 or fast=2; adjust other tokens as noted.
+# =============================================================================
+
+# --- fp-model fast=2 combinations (slightly more aggressive, same Phase 1 perf) ---
+
+# fp_fast2 + unroll-aggressive (+13% + +1.2% additively?)
+p2_fp2_unroll | fp-model fast=2 + unroll-aggressive | -no-fma -ip -g -traceback -i4 -real-size 32 -fp-model fast=2 -assume byterecl -fno-alias -fno-fnalias | -O3 -unroll-aggressive
+
+# fp_fast2 + O2 (fp relaxation + weaker opt that unexpectedly outperformed O3)
+p2_fp2_O2 | fp-model fast=2 + O2 | -no-fma -ip -g -traceback -i4 -real-size 32 -fp-model fast=2 -assume byterecl -fno-alias -fno-fnalias | -O2
+
+# fp_fast2 + ipo (fp relaxation + stronger cross-file inlining)
+p2_fp2_ipo | fp-model fast=2 + ipo | -no-fma -ipo -g -traceback -i4 -real-size 32 -fp-model fast=2 -assume byterecl -fno-alias -fno-fnalias | -O3
+
+# fp_fast2 + fma (two FP relaxations: model + FMA enable — check for redundancy)
+p2_fp2_fma | fp-model fast=2 + fma | -fma -ip -g -traceback -i4 -real-size 32 -fp-model fast=2 -assume byterecl -fno-alias -fno-fnalias | -O3
+
+# --- Triple combinations ---
+
+# fp_fast2 + ipo + unroll (three individually positive flags)
+p2_fp2_ipo_unroll | fp-model fast=2 + ipo + unroll-aggressive | -no-fma -ipo -g -traceback -i4 -real-size 32 -fp-model fast=2 -assume byterecl -fno-alias -fno-fnalias | -O3 -unroll-aggressive
+
+# fp_fast2 + O2 + unroll (relax fp + weaker opt level + force-unroll)
+p2_fp2_O2_unroll | fp-model fast=2 + O2 + unroll-aggressive | -no-fma -ip -g -traceback -i4 -real-size 32 -fp-model fast=2 -assume byterecl -fno-alias -fno-fnalias | -O2 -unroll-aggressive
+
+# --- fp-model fast=1 reference combo (weaker relaxation, same Phase 1 perf as fast=2) ---
+
+# fp_fast1 + ipo (conservative FP relaxation + stronger inlining)
+p2_fp1_ipo | fp-model fast=1 + ipo | -no-fma -ipo -g -traceback -i4 -real-size 32 -fp-model fast=1 -assume byterecl -fno-alias -fno-fnalias | -O3
+
+
+# =============================================================================
+# NEW EXPERIMENTS — added after automake diff analysis (Compilator, May 8)
+# =============================================================================
+
+# --- PRIORITY 1: Triple combo of three biggest independent Phase 1 gains ---
+# fp_fast2 (+13%) + O2 (+2.5%) + ipo (+2.2%): replaces -ip with -ipo and -O3 with -O2.
+# Most likely candidate to break below 369 s if gains are even partially additive.
+p2_fp2_O2_ipo | fp-model fast=2 + O2 + ipo (top 3 Phase 1 gains stacked) | -no-fma -ipo -g -traceback -i4 -real-size 32 -fp-model fast=2 -assume byterecl -fno-alias -fno-fnalias | -O2
+
+# --- PRIORITY 2: Streaming stores — non-temporal writes bypass write-allocate ---
+# Default is OFF. For 4M points × 864 spectral bins updated each timestep,
+# bypassing L3 cache for writes reduces write-back traffic.
+# -qopt-streaming-stores=always forces NT stores unconditionally.
+p2_fp2_streaming | fp-model fast=2 + streaming stores (non-temporal writes for large arrays) | -no-fma -ip -g -traceback -i4 -real-size 32 -fp-model fast=2 -assume byterecl -fno-alias -fno-fnalias | -O3 -qopt-streaming-stores=always
+
+# --- PRIORITY 3: Software prefetch — default OFF even at -O3 ---
+# -qopt-prefetch=4 inserts aggressive prefetch hints ahead of inner loops,
+# hiding DRAM latency in WW3's spectral summation over ~864 bins/point.
+p2_fp2_prefetch | fp-model fast=2 + software prefetch level 4 | -no-fma -ip -g -traceback -i4 -real-size 32 -fp-model fast=2 -assume byterecl -fno-alias -fno-fnalias | -O3 -qopt-prefetch=4
+
+# --- PRIORITY 4: Control — strip all cmake extras, reproduce automake exactly ---
+# Removes -no-fma, -fp-model precise, -g, -traceback, -fno-alias, -fno-fnalias.
+# Keeps -i4 -real-size 32 for data layout consistency.
+# Expected: 369-370 s. If different, one of the stripped flags matters.
+p2_automake_equiv | cmake flags stripped to automake equivalent (no fp-model, no debug, no alias) | -ip -i4 -real-size 32 -assume byterecl | -O3
+
+# --- PRIORITY 5: 128-byte array alignment (Phase 1 tested 64-byte, +1.0%) ---
+# AVX-512 vector registers are 64 bytes wide; 128-byte boundaries eliminate
+# cross-line splits when two adjacent AVX-512 loads touch the same array row.
+p2_fp2_align128 | fp-model fast=2 + align array128byte (vs. 64-byte in Phase 1) | -no-fma -ip -g -traceback -i4 -real-size 32 -fp-model fast=2 -assume byterecl -fno-alias -fno-fnalias | -O3 -align array128byte
+
+# --- DIAGNOSTIC: does -g/-traceback cost anything at O3? ---
+# Keeps fp-model precise but removes debug metadata flags.
+# If flat vs comp_ref: confirms debug flags are free (expected).
+# If faster: debug info was interfering with scheduler/inlining decisions.
+p2_no_debug | ref base without -g -traceback (debug overhead check) | -no-fma -ip -i4 -real-size 32 -fp-model precise -assume byterecl -fno-alias -fno-fnalias | -O3
+
+# --- DIAGNOSTIC: do -fno-alias/-fno-fnalias add anything with fast=2? ---
+# automake achieves 370 s without any alias flags. This isolates their value.
+# If flat vs p2_fp2 (369 s): alias flags are irrelevant alongside fast=2.
+p2_fp2_no_alias | fp-model fast=2 without alias flags (automake-style) | -no-fma -ip -g -traceback -i4 -real-size 32 -fp-model fast=2 -assume byterecl | -O3
+
+
+# =============================================================================
+# PHASE 3 — TARGETING 300s  (current best: 367s = 18.3% gap to close)
+# =============================================================================
+# ─────────────────────────────────────────────────────────────────────────────
+# ROOT CAUSE DISCOVERY — AMD EPYC 9005 hardware, SSE2 default SIMD
+# ─────────────────────────────────────────────────────────────────────────────
+# The compiler path in CMakeCache.txt reveals the true hardware:
+#   /software/sse2/el9_epyc9005/manual/intel/oneapi/2023.1.0/...
+#
+#   sse2         → compiler stack tier = SSE2-only by default  (128-bit vectors!)
+#   el9_epyc9005 → RHEL 9, AMD EPYC 9005 (Genoa, Zen 4)
+#
+# This has two critical implications:
+#
+#   1. ALL previous experiments ran at SSE2 (128-bit SIMD).
+#      AMD Zen 4 supports AVX2 (256-bit) and AVX-512 (512-bit).
+#      Going SSE2 → AVX2 = 2× SIMD width = potentially 15–30% speedup
+#      on vectorisable spectral inner loops.
+#
+#   2. -xHost was disastrous (1188s) because Intel ifort's -x<ISA> flags
+#      embed an Intel CPUID check at runtime. On AMD, the check returns
+#      "not Intel" → code falls back to the SSE2 dispatch path.
+#      xHost compiled for the Intel login node's ISA (e.g. Skylake AVX-512),
+#      then executed the SSE2-only fallback on AMD compute nodes.
+#
+# SOLUTION — use -m<isa> flags (GCC-style, no Intel CPUID dispatch):
+#   -mavx2 -mfma     →  AVX2 + FMA3, 256-bit, SAFE on AMD Zen 4
+#   -mavx512f etc.   →  AVX-512, 512-bit, also safe (no CPUID check) BUT
+#                       Intel ifort may not vectorise all loops to ZMM width
+#                       without -qopt-zmm-usage=high
+#
+# Expected gains from SSE2 → AVX2:
+#   WW3 inner spectral loops (f × sigma × theta, ~864 bins/point @ 4M points)
+#   are vectorisable; 2× SIMD width → ~15–25% speedup on those sections
+#   → overall wall-clock reduction from 367s to roughly 270–315s.
+#   NOTE: gains will appear in Phase 3A. If ≥ 15% → ~310s; if ≥ 20% → ~294s.
+#
+# Combined path to 300s:
+#   Phase 3A + debug strip:    ~280–320s
+#   + PGO (Phase 3D):         ~240–290s  (PGO gives 5–15% on top)
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 3A — AVX2 unlock  (HIGHEST PRIORITY — may alone reach 300s)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Best Phase 2 combo + AVX2+FMA.  No Intel CPUID check; safe on AMD Zen 4.
+# Base: keep -g -traceback for fair comparison with Phase 2.
+# COMPLETED — 360s (+1.9% vs Phase2 best 367s)
+p3_fp2_ipo_unroll_avx2 | fp_fast2 + ipo + unroll + AVX2+FMA (no CPUID, safe on AMD Zen4) | -no-fma -ipo -g -traceback -i4 -real-size 32 -fp-model fast=2 -assume byterecl -fno-alias -fno-fnalias | -O3 -unroll-aggressive -mavx2 -mfma
+
+# COMPLETED — 355s ← NEW BEST (+17.4% vs ref 417s; +3.3% vs Phase2 best)
+p3_fp2_ipo_unroll_avx2_nd | fp_fast2 + ipo + unroll + AVX2 + no debug flags | -no-fma -ipo -i4 -real-size 32 -fp-model fast=2 -assume byterecl -fno-alias -fno-fnalias | -O3 -unroll-aggressive -mavx2 -mfma
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 3A (continued) — AVX2 with SVML ABI guard and alignment
+# ─────────────────────────────────────────────────────────────────────────────
+# COMPLETED — 356s (vecabi alone: -4s vs base AVX2 360s; consistent with SVML ABI fix)
+p3_fp2_ipo_unroll_avx2_vecabi | fp_fast2 + ipo + unroll + AVX2 + vecabi=cmdtarget (SVML ABI guard) | -no-fma -ipo -g -traceback -i4 -real-size 32 -fp-model fast=2 -assume byterecl -fno-alias -fno-fnalias | -O3 -unroll-aggressive -mavx2 -mfma -vecabi=cmdtarget
+
+# COMPLETED — 357s (align alone: -3s vs base AVX2)
+p3_fp2_ipo_unroll_avx2_align | fp_fast2 + ipo + unroll + AVX2 + array64byte alignment | -no-fma -ipo -g -traceback -i4 -real-size 32 -fp-model fast=2 -assume byterecl -fno-alias -fno-fnalias | -O3 -unroll-aggressive -mavx2 -mfma -align array64byte
+
+# NEW — combine nd + vecabi (not yet run):
+# nd gave +5s, vecabi gave +4s; if independent → ~351s
+p3_fp2_ipo_unroll_avx2_nd_vecabi | fp_fast2 + ipo + unroll + AVX2 + no debug + vecabi=cmdtarget | -no-fma -ipo -i4 -real-size 32 -fp-model fast=2 -assume byterecl -fno-alias -fno-fnalias | -O3 -unroll-aggressive -mavx2 -mfma -vecabi=cmdtarget
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 3B — AVX-512  (AMD Zen4 supports avx512f/bw/dq/vl — try after 3A)
+# ─────────────────────────────────────────────────────────────────────────────
+# -mavx512f/bw/dq/vl: emit 512-bit SIMD, no Intel CPUID check.
+# -qopt-zmm-usage=high: force ZMM (512-bit) registers; without it ifort may
+# prefer YMM to avoid register-file pressure even when -mavx512f is set.
+# Risk: Intel SVML ZMM functions internally use AVX-512-4FMAPS/4VNNIW paths
+#       not present on Zen4. Start with _safe (no zmm-force), check for SIGILL
+#       or wrong checksums, THEN try aggressive.
+# NOTE: Base flags keep -g -traceback to isolate the AVX2→512 delta cleanly
+#       (same baseline as p3_fp2_ipo_unroll_avx2).
+
+# COMPLETED — 373s ← DISQUALIFIED: slower than AVX2 (360s). Intel ifort AVX-512
+# codegen makes Intel micro-arch assumptions that don't hold on AMD Zen4.
+# Abandoned: do NOT run aggressive variant.
+p3_fp2_ipo_unroll_avx512_safe | fp_fast2 + ipo + unroll + AVX-512 conservative (ABANDONED) | -no-fma -ipo -g -traceback -i4 -real-size 32 -fp-model fast=2 -assume byterecl -fno-alias -fno-fnalias | -O3 -unroll-aggressive -mavx512f -mavx512bw -mavx512dq -mavx512vl
+
+# NOT RUN — skipped based on _safe result (AVX-512 slower than AVX2 on this AMD)
+# p3_fp2_ipo_unroll_avx512 | SKIP | ... | -O3 -unroll-aggressive -mavx512f -mavx512bw -mavx512dq -mavx512vl -qopt-zmm-usage=high
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 3C — AVX2 + streaming stores  (large-array non-temporal writes)
+# ─────────────────────────────────────────────────────────────────────────────
+# At AVX2 width, write-bandwidth to non-temporal stores becomes more important.
+# -qopt-streaming-stores=always bypasses L3 write-allocate for large arrays.
+# Combine with AVX2 after confirming 3A provides gain.
+# SKIP — p2_fp2_streaming at SSE2 showed 401s (+3.9% only vs ref, badly underperforms).
+# Bandwidth-bound workload suffers from cache-bypass writes. Do not run AVX2 variant.
+# p3_fp2_ipo_unroll_avx2_stream — CANCELLED based on p2_fp2_streaming result
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 3D — Fully-stripped "production" build  (combine all confirmed gains)
+# ─────────────────────────────────────────────────────────────────────────────
+# Remove ALL development overhead flags (-g, -traceback, -sox implicit).
+# Keep -i4 -real-size 32 for numerical safety.
+# Run AFTER Phase 3A/3B to know which vector ISA to use.
+
+# Run AFTER PGO — this is the clean production build to use for real hindcasts.
+# Same as p3_fp2_ipo_unroll_avx2_nd but without -fno-alias/-fno-fnalias too
+# (confirmed irrelevant by p2_fp2_no_alias=373s → 4s slower than nd=355 is only AVX2 diff)
+# Use p3_fp2_ipo_unroll_avx2_nd as the PGO base instead; reserve this for final production.
+p3_prod_avx2 | production build: fp_fast2 + ipo + unroll + AVX2, no debug overhead | -no-fma -ipo -i4 -real-size 32 -fp-model fast=2 -assume byterecl | -O3 -unroll-aggressive -mavx2 -mfma
+
+# =============================================================================
+# PHASE 3E — PGO  (NEXT STEP — the only remaining path to 300s)
+# =============================================================================
+# Best result so far: p3_fp2_ipo_unroll_avx2_nd at 355s.
+# To reach 300s: need 15.5% further reduction.
+# PGO expected: 5-15% → ~303-337s. At 10% → 320s. At 15% → 302s.
+#
+# PGO base config (same as p3_fp2_ipo_unroll_avx2_nd):
+#   Base:    -no-fma -ipo -i4 -real-size 32 -fp-model fast=2 -assume byterecl -fno-alias -fno-fnalias
+#   Release: -O3 -unroll-aggressive -mavx2 -mfma
+#
+# Run:
+#   bash run_phase3_pgo.sh --step 1 --exp-id p3_pgo_avx2_nd
+#   bash run_phase3_pgo.sh --step 2 --exp-id p3_pgo_avx2_nd
+#   # wait for profiling job (1h sim, ~1500-3000s elapsed due to instrumentation)
+#   bash run_phase3_pgo.sh --step 3 --exp-id p3_pgo_avx2_nd
+#   bash run_phase3_pgo.sh --step 4 --exp-id p3_pgo_avx2_nd
+#   bash run_phase3_pgo.sh --step 5 --exp-id p3_pgo_avx2_nd
+# =============================================================================
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 3E — PGO (Profile-Guided Optimisation)  SEE run_phase3_pgo.sh
+# ─────────────────────────────────────────────────────────────────────────────
+# PGO is a two-step compile+run+recompile workflow not handled by this file.
+# Use run_phase3_pgo.sh with the best Phase 3 base config as the starting point.
+# Expected gain: 5–15% on top of AVX2 → likely path to sub-300s.
+#
+# Workflow summary (see run_phase3_pgo.sh for full details):
+#   Step 1: compile with base flags + -prof-gen → instrumented binary
+#   Step 2: run 1h profiling simulation → creates *.dyn files per MPI rank
+#   Step 3: profmerge in build/pgocache/ → pgopti.ddf
+#   Step 4: recompile with -prof-use -prof-dir <pgocache> → optimised binary
+#   Step 5: run 10h benchmark → results in benchmark_summary.csv
+# =============================================================================
