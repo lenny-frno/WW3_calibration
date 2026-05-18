@@ -1,23 +1,29 @@
 #!/bin/bash
 # =============================================================================
-# prep.job — WW3 preprocessing (ww3_grid + ww3_prnc)
+# prep.job — WW3 preprocessing (ww3_grid + ww3_prnc + optional ww3_bounc)
 # =============================================================================
-# Version: 2.2
+# Version: 2.3
 #
 # Called by run_exp.sh via sbatch — do not submit directly.
 # Arguments:
 #   $1  EXP_DIR
 #   $2  WORK_DIR
 #   $3  META_DIR
+#
+# Preprocessing steps:
+#   [1/N] ww3_grid  — creates mod_def.ww3
+#   [2/N] ww3_prnc (wind) — uses ww3_prnc_wind.nml or ww3_prnc.nml
+#   [3/N] ww3_prnc (SIC)  — uses ww3_prnc_ice.nml.sic  (optional)
+#   [4/N] ww3_prnc (ice thickness) — uses ww3_prnc_ice.nml.thick (optional)
+#   [5/N] ww3_bounc — uses ww3_bounc.nml (optional)
 # =============================================================================
-set -euo pipefail
 
 EXP_DIR="${1}"
 WORK_DIR="${2}"
 META_DIR="${3}"
 
 echo "============================================================"
-echo " WW3 Preprocessing  (framework v2.2)"
+echo " WW3 Preprocessing  (framework v2.3)"
 echo "============================================================"
 echo "  Job ID   : ${SLURM_JOB_ID:-unknown}"
 echo "  Work dir : ${WORK_DIR}"
@@ -35,6 +41,14 @@ if [[ ! -f "${ENV_FILE}" ]]; then
 fi
 source "${ENV_FILE}"
 
+# Unset OMP_NUM_THREADS so that mpprun does NOT add --hint multithread /
+# --cpu-bind cores when launching serial preprocessors (ww3_grid, ww3_prnc).
+# With non-OpenMP builds this was harmless, but OpenMP-compiled (OMPH) binaries
+# call pthread_setaffinity_np → crash when prep.job allocates only 1 CPU/task.
+# run_shel.job sets OMP_NUM_THREADS explicitly from WW3_OMP_THREADS, so this
+# unset only affects the prep stage.
+unset OMP_NUM_THREADS
+
 # --------------------------------------------------------------------------
 # Validate and enter work directory
 # --------------------------------------------------------------------------
@@ -47,44 +61,111 @@ ls -la
 echo ""
 
 # --------------------------------------------------------------------------
-# [1/3] ww3_grid
+# [1/5] ww3_grid
 # --------------------------------------------------------------------------
-trap 'touch "${WORK_DIR}/prep.grid.failed"; echo "ERROR: ww3_grid failed"' ERR
-
-echo "[1/3] Running ww3_grid..."
-[[ ! -f "ww3_grid.nml" ]] && echo "ERROR: ww3_grid.nml not found in ${WORK_DIR}" && exit 1
+echo "[1/5] Running ww3_grid..."
+if [[ ! -f "ww3_grid.nml" ]]; then
+    echo "ERROR: ww3_grid.nml not found in ${WORK_DIR}" >&2
+    exit 1
+fi
 
 "${WORK_DIR}/ww3_grid" | tee ww3_grid.out
+if [[ "${PIPESTATUS[0]}" -ne 0 ]]; then
+    echo "ERROR: ww3_grid failed — check ww3_grid.out" >&2
+    exit 1
+fi
 echo "      ww3_grid complete"
 
 # --------------------------------------------------------------------------
-# [2/3] ww3_prnc — winds
+# [2/5] ww3_prnc — winds
+# Use ww3_prnc_wind.nml if present (configs with ice use separate wind nml),
+# otherwise fall back to ww3_prnc.nml.
 # --------------------------------------------------------------------------
-trap 'touch "${WORK_DIR}/prep.winds.failed"; echo "ERROR: ww3_prnc (winds) failed"' ERR
-
 echo ""
-echo "[2/3] Running ww3_prnc (winds)..."
-[[ ! -f "ww3_prnc.nml" ]] && echo "ERROR: ww3_prnc.nml not found in ${WORK_DIR}" && exit 1
+echo "[2/5] Running ww3_prnc (winds)..."
+if [[ -f "ww3_prnc_wind.nml" ]]; then
+    cp ww3_prnc_wind.nml ww3_prnc.nml
+    echo "      using ww3_prnc_wind.nml"
+elif [[ ! -f "ww3_prnc.nml" ]]; then
+    echo "ERROR: no wind namelist found (ww3_prnc_wind.nml or ww3_prnc.nml)" >&2
+    exit 1
+fi
 [[ ! -f "wind.nc" ]] && echo "WARNING: wind.nc not found — ww3_prnc may fail"
 
 "${WORK_DIR}/ww3_prnc" | tee ww3_prnc.winds.out
+if [[ "${PIPESTATUS[0]}" -ne 0 ]]; then
+    echo "ERROR: ww3_prnc (winds) failed — check ww3_prnc.winds.out" >&2
+    exit 1
+fi
 echo "      ww3_prnc (winds) complete"
 
+# Save the wind namelist so we can restore after ice steps
+cp ww3_prnc.nml ww3_prnc_wind_active.nml
+
 # --------------------------------------------------------------------------
-# [3/3] ww3_prnc — ice (optional, only if namelist and input exist)
+# [3/5] ww3_prnc — sea-ice concentration (optional)
+# Uses ww3_prnc_ice.nml.sic; restores ww3_prnc.nml (wind) afterwards.
 # --------------------------------------------------------------------------
-if [[ -f "ww3_prnc_ice.nml" ]] && [[ -f "ice.nc" ]]; then
-    trap 'touch "${WORK_DIR}/prep.ice.failed"; echo "ERROR: ww3_prnc (ice) failed"' ERR
-    echo ""
-    echo "[3/3] Running ww3_prnc (ice)..."
-    cp ww3_prnc_ice.nml ww3_prnc.nml
-    "${WORK_DIR}/ww3_prnc" | tee ww3_prnc.ice.out
-    echo "      ww3_prnc (ice) complete"
+echo ""
+if [[ -f "ww3_prnc_ice.nml.sic" ]]; then
+    echo "[3/5] Running ww3_prnc (sea-ice concentration)..."
+    [[ ! -f "ice.nc" ]] && echo "WARNING: ice.nc not found — SIC prnc may fail"
+    cp ww3_prnc_ice.nml.sic ww3_prnc.nml
+    "${WORK_DIR}/ww3_prnc" | tee ww3_prnc.sic.out
+    if [[ "${PIPESTATUS[0]}" -ne 0 ]]; then
+        echo "ERROR: ww3_prnc (SIC) failed — check ww3_prnc.sic.out" >&2
+        cp ww3_prnc_wind_active.nml ww3_prnc.nml
+        exit 1
+    fi
+    cp ww3_prnc_wind_active.nml ww3_prnc.nml
+    echo "      ww3_prnc (SIC) complete"
 else
-    echo ""
-    echo "[3/3] Skipping ice preprocessing"
-    [[ ! -f "ww3_prnc_ice.nml" ]] && echo "       (no ww3_prnc_ice.nml found)"
-    [[ ! -f "ice.nc" ]]           && echo "       (no ice.nc found)"
+    echo "[3/5] Skipping SIC preprocessing (no ww3_prnc_ice.nml.sic found)"
+fi
+
+# --------------------------------------------------------------------------
+# [4/5] ww3_prnc — sea-ice thickness (optional)
+# Uses ww3_prnc_ice.nml.thick; restores ww3_prnc.nml (wind) afterwards.
+# --------------------------------------------------------------------------
+echo ""
+if [[ -f "ww3_prnc_ice.nml.thick" ]]; then
+    echo "[4/5] Running ww3_prnc (sea-ice thickness)..."
+    [[ ! -f "ice.nc" ]] && echo "WARNING: ice.nc not found — thickness prnc may fail"
+    cp ww3_prnc_ice.nml.thick ww3_prnc.nml
+    "${WORK_DIR}/ww3_prnc" | tee ww3_prnc.thick.out
+    if [[ "${PIPESTATUS[0]}" -ne 0 ]]; then
+        echo "ERROR: ww3_prnc (thickness) failed — check ww3_prnc.thick.out" >&2
+        cp ww3_prnc_wind_active.nml ww3_prnc.nml
+        exit 1
+    fi
+    cp ww3_prnc_wind_active.nml ww3_prnc.nml
+    echo "      ww3_prnc (thickness) complete"
+else
+    echo "[4/5] Skipping ice-thickness preprocessing (no ww3_prnc_ice.nml.thick found)"
+fi
+
+# Clean up temporary wind backup
+rm -f ww3_prnc_wind_active.nml
+
+# --------------------------------------------------------------------------
+# [5/5] ww3_bounc — boundary conditions (optional)
+# Run only when ww3_bounc.nml is present in the work directory.
+# --------------------------------------------------------------------------
+echo ""
+if [[ -f "ww3_bounc.nml" ]]; then
+    echo "[5/5] Running ww3_bounc (boundary conditions)..."
+    if [[ ! -f "${WORK_DIR}/ww3_bounc" ]]; then
+        echo "ERROR: ww3_bounc executable not found in ${WORK_DIR}" >&2
+        exit 1
+    fi
+    "${WORK_DIR}/ww3_bounc" | tee ww3_bounc.out
+    if [[ "${PIPESTATUS[0]}" -ne 0 ]]; then
+        echo "ERROR: ww3_bounc failed — check ww3_bounc.out" >&2
+        exit 1
+    fi
+    echo "      ww3_bounc complete"
+else
+    echo "[5/5] Skipping ww3_bounc (no ww3_bounc.nml found)"
 fi
 
 echo ""

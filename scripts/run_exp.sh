@@ -38,9 +38,9 @@
 #   ./run_exp.sh -e exp_v1 --ntasks 600 -d 1d --dry-run
 # =============================================================================
 
-set -euo pipefail
-
-BENCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Workspace root (parent of this scripts/ directory)
+BENCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+JOBS_DIR="${BENCH_DIR}/jobs"
 
 # --------------------------------------------------------------------------
 # Defaults
@@ -284,7 +284,7 @@ if [[ "${SKIP_PREP}" == false ]]; then
         --ntasks-per-node=1 \
         --output="${LOGS_DIR}/prep.%j.LOG" \
         --error="${LOGS_DIR}/prep.%j.ERR" \
-        "${BENCH_DIR}/prep.job" \
+        "${JOBS_DIR}/prep.job" \
         "${EXP_DIR}" "${WORK_DIR}" "${META_DIR}")
  
     echo "      Prep job submitted: ${PREP_JOB_ID}"
@@ -311,7 +311,7 @@ SHEL_JOB_ID=$(submit_job "shel" \
     --output="${LOGS_DIR}/shel.%j.LOG" \
     --error="${LOGS_DIR}/shel.%j.ERR" \
     ${PREP_DEP} \
-    "${BENCH_DIR}/run_shel.job" \
+    "${JOBS_DIR}/run_shel.job" \
     "${EXP_DIR}" "${WORK_DIR}" "${SIM_DURATION}" "${META_DIR}" "${CPUS_PER_TASK}")
  
 echo "      Shel job: ${SHEL_JOB_ID}"
@@ -335,7 +335,7 @@ LOG_JOB_ID=$(submit_job "perf" \
     --output="${LOGS_DIR}/perf.%j.LOG" \
     --error="${LOGS_DIR}/perf.%j.ERR" \
     --dependency=afterany:${SHEL_JOB_ID} \
-    "${BENCH_DIR}/log_performance.sh" \
+    "${BENCH_DIR}/scripts/log_performance.sh" \
     "${EXP_DIR}" "${SHEL_JOB_ID}" \
     "${NODES_FOR_LOG}" "${NTASKS_PER_NODE}" \
     "${SIM_DURATION}" "${META_DIR}" "${TOTAL_TASKS}")
@@ -368,7 +368,7 @@ if [[ "${RUN_POST}" == true || "${ONLY_POST}" == true ]]; then
         --output="${LOGS_DIR}/post.%j.LOG" \
         --error="${LOGS_DIR}/post.%j.ERR" \
         ${POST_DEP} \
-        "${BENCH_DIR}/post.job" \
+        "${JOBS_DIR}/post.job" \
         "${EXP_DIR}" "${WORK_DIR}" "${META_DIR}")
 
     echo "      Post job: ${POST_JOB_ID}"

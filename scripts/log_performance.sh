@@ -25,8 +25,6 @@
 #   - mem_per_cpu added to CSV and JSON
 # =============================================================================
 
-set -euo pipefail
-
 EXP_DIR="${1}"
 SHEL_JOB_ID="${2}"
 NODES="${3}"

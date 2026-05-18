@@ -27,10 +27,10 @@
 #   ./setup.sh -w /home/sm_lenal/programs/compiling/no_SCRIP/WW3 -e CARRA2_no_SCRIP_oneVar -g CARRA2 -s noSCRIP -c configs/oneVar_noSaving/ -t "scaling,switch,physics,SCRIP"
 #   ./setup.sh -e CARRA2_ref_noSCUM -g CARRA2 -c configs/noSCUM/ -t "scaling,namelist,physics,noSCUM"
 # =============================================================================
-set -euo pipefail
-
 FRAMEWORK_VERSION="2.0"
-BENCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Workspace root (parent of this scripts/ directory)
+BENCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+JOBS_DIR="${BENCH_DIR}/jobs"
 
 # --------------------------------------------------------------------------
 # Defaults
@@ -58,7 +58,12 @@ for arg in "$@"; do
         *)         ARGS+=("${arg}") ;;
     esac
 done
-set -- "${ARGS[@]:-}"
+# Safe even when ARGS is empty (avoids nounset expansion failure)
+if [[ ${#ARGS[@]} -gt 0 ]]; then
+    set -- "${ARGS[@]}"
+else
+    set --
+fi
  
 while getopts "w:e:y:m:D:s:g:c:t:f" opt; do
     case $opt in
@@ -164,7 +169,7 @@ echo "      └── metadata/"
 # --------------------------------------------------------------------------
 echo "[2/7] Linking executables..."
 run mkdir -p "${EXE_LINK_DIR}"
-EXE_LIST=(ww3_grid ww3_bounc ww3_prnc ww3_shel ww3_ounf)
+EXE_LIST=(ww3_grid ww3_bounc ww3_prnc ww3_shel ww3_multi ww3_ounf)
 for exe in "${EXE_LIST[@]}"; do
     src="${EXE_SRC}/${exe}"
     if [[ -f "${src}" ]]; then
@@ -236,8 +241,11 @@ fi
 # --------------------------------------------------------------------------
 echo "[5/7] Setting up namelists..."
 if [[ -n "${CONFIG_DIR}" ]]; then
-    NML_LIST=(ww3_prnc.nml namelist.nml ww3_shel.nml ww3_shel_1h.nml ww3_shel_10h.nml \
-              ww3_shel_1d.nml ww3_shel_3d.nml ww3_shel_7d.nml ww3_ounf.nml)
+    NML_LIST=(ww3_prnc.nml ww3_prnc_wind.nml namelist.nml ww3_shel.nml \
+              ww3_shel_1h.nml ww3_shel_10h.nml \
+              ww3_shel_1d.nml ww3_shel_3d.nml ww3_shel_7d.nml ww3_ounf.nml \
+              ww3_bounc.nml ww3_multi.nml \
+              ww3_prnc_ice.nml.sic ww3_prnc_ice.nml.thick)
     copied=0
     for nml in "${NML_LIST[@]}"; do
         src="${CONFIG_DIR}/${nml}"
@@ -358,21 +366,6 @@ echo "      saved: ${META_FILE}"
 # --------------------------------------------------------------------------
 echo "      writing: ${META_JSON}"
 
-# ---- safe tag handling ----
-    if [[ -n "${TAGS}" ]]; then
-        TAGS_JSON=$(printf '%s\n' "${TAGS}" | awk -F',' '{
-            printf "["
-            for(i=1;i<=NF;i++) {
-                gsub(/"/, "\\\"", $i)
-                printf "\"%s\"%s",$i,(i<NF?",":"")
-            }
-            printf "]"
-        }')
-    else
-        TAGS_JSON="[]"
-    fi
-
-    NOW=$(date +"%Y-%m-%dT%H:%M:%S")
 # Convert tags to JSON array
 if [[ -n "${TAGS}" ]]; then
     TAGS_JSON=$(printf '%s\n' "${TAGS}" | awk -F',' '{for(i=1;i<=NF;i++) printf "\"%s\"%s",$i,(i<NF?",":"")}')
@@ -510,7 +503,7 @@ export SWITCH="${SWITCH}"
 EOF
 
 # Lock metadata against accidental edits
-chmod -w "${META_DIR}/model_info.txt" "${CONFIG_FILE}" 2>/dev/null || true
+chmod -w "${SETUP_DIR}/model_info.txt" "${CONFIG_FILE}" 2>/dev/null || true
 echo "      saved and locked: ${CONFIG_FILE}"
 fi
 
