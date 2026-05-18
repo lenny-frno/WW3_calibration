@@ -204,6 +204,9 @@ echo " WW3 Experiment Runner  (framework v2.2)"
 echo "============================================================"
 echo "  Experiment  : ${EXP_NAME}"
 echo "  Tags        : ${TAGS:-none}"
+[[ -n "${PERIOD_NAME}" ]] && echo "  Period      : ${PERIOD_NAME}"
+[[ -n "${START_DATE}" ]]  && echo "  Start date  : ${START_DATE}"
+[[ -n "${END_DATE}" ]]    && echo "  End date    : ${END_DATE}"
 echo "  Layout      : ${LAYOUT_DESC}"
 echo "  Total tasks : ${TOTAL_TASKS}"
 echo "  CPUs/task   : ${CPUS_PER_TASK}"
@@ -243,6 +246,9 @@ if [[ "${DRY_RUN}" == false ]]; then
 Submitted        : $(date --iso-8601=seconds)
 Experiment       : ${EXP_NAME}
 Tags             : ${TAGS:-none}
+Period           : ${PERIOD_NAME:-none}
+Start date       : ${START_DATE:-N/A}
+End date         : ${END_DATE:-N/A}
 Task layout      : ${LAYOUT_DESC}
  
 --- Resources ---

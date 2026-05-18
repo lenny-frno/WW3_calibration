@@ -1,0 +1,11 @@
+# WW3 Period definition — managed by manage_periods.sh
+# DO NOT EDIT manually — use: manage_periods.sh add/remove
+PERIOD_NAME="storm_eunice_2022"
+START_DATE="20220218 000000"
+END_DATE="20220221 000000"
+YEAR="2022"
+MONTH="02"
+PERIOD_DURATION_DAYS="3"
+DESCRIPTION="Storm Eunice, North Sea"
+TAGS="storm,calibration"
+ADDED_AT="2026-05-18T08:58:27+02:00"

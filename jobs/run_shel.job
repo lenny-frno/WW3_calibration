@@ -113,7 +113,13 @@ case "${SIM_DURATION}" in
     3d)  NML_SRC="ww3_shel_3d.nml"  ;;
     7d)  NML_SRC="ww3_shel_7d.nml"  ;;
     *)
-        echo "WARNING: Unknown duration '${SIM_DURATION}', using ww3_shel.nml as-is"
+        # Numeric value (e.g. "3" or "3.5") from period-based calibration:
+        # dates are already baked into ww3_shel.nml by setup.sh — use it as-is.
+        if [[ "${SIM_DURATION}" =~ ^[0-9]+(\\.[0-9]+)?$ ]]; then
+            echo "  Numeric duration (${SIM_DURATION} days) — ww3_shel.nml used as-is (dates baked in)"
+        else
+            echo "WARNING: Unknown duration '${SIM_DURATION}', using ww3_shel.nml as-is"
+        fi
         NML_SRC=""
         ;;
 esac
@@ -136,7 +142,14 @@ case "${SIM_DURATION}" in
     1d)  SIM_DAYS=1.0     ;;
     3d)  SIM_DAYS=3.0     ;;
     7d)  SIM_DAYS=7.0     ;;
-    *)   SIM_DAYS=1.0     ;;
+    *)
+        # Accept a bare numeric value (integer or float) as days
+        if [[ "${SIM_DURATION}" =~ ^[0-9]+(\\.[0-9]+)?$ ]]; then
+            SIM_DAYS="${SIM_DURATION}"
+        else
+            SIM_DAYS=1.0
+        fi
+        ;;
 esac
 
 # --------------------------------------------------------------------------

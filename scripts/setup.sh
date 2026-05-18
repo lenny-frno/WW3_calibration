@@ -2,7 +2,7 @@
 # =============================================================================
 # setup.sh — WW3 Experiment Environment Setup
 # =============================================================================
-# Version: 2.0
+# Version: 2.1
 #
 # Usage: ./setup.sh [OPTIONS]
 #   -w  WW3 model path         (default: from_waveXtrems)
@@ -14,6 +14,9 @@
 #   -g  Grid name              (default: CARRA2)
 #   -c  Config/namelist dir    (default: none — copy namelists manually)
 #   -t  Tags (comma-separated) (default: none)
+#   -P  Period name             (default: none — use -y/-m for manual date control)
+#                              Loads periods/<name>.period, overrides -y/-m,
+#                              substitutes {{START_DATE}}/{{END_DATE}} in namelists
 #   -f  Force overwrite existing experiment
 #   --dry-run                  Print actions without executing
 #
@@ -26,8 +29,9 @@
 #   ./setup.sh -w /home/sm_lenal/programs/compiling/no_RTD/WW3 -e CARRA2_no_RTD_oneVar -g CARRA2 -s noRTD -c configs/oneVar_noSaving/ -t "scaling,switch,physics,RTD"
 #   ./setup.sh -w /home/sm_lenal/programs/compiling/no_SCRIP/WW3 -e CARRA2_no_SCRIP_oneVar -g CARRA2 -s noSCRIP -c configs/oneVar_noSaving/ -t "scaling,switch,physics,SCRIP"
 #   ./setup.sh -e CARRA2_ref_noSCUM -g CARRA2 -c configs/noSCUM/ -t "scaling,namelist,physics,noSCUM"
+#   ./setup.sh -c configs/CARRA2_exp_1 -P storm_eunice_2022 -e CARRA2_exp_1__storm_eunice_2022
 # =============================================================================
-FRAMEWORK_VERSION="2.0"
+FRAMEWORK_VERSION="2.1"
 # Workspace root (parent of this scripts/ directory)
 BENCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 JOBS_DIR="${BENCH_DIR}/jobs"
@@ -44,8 +48,14 @@ SWITCH="dnora"
 GRID="CARRA2"
 CONFIG_DIR=""          # optional namelist source directory
 TAGS=""                # comma-separated tags e.g. "scaling,intel,arctic"
+PERIOD_NAME=""         # optional named period (loads from periods/<name>.period)
 FORCE=false
 DRY_RUN=false
+
+# Period-derived dates (populated when -P is used)
+START_DATE=""
+END_DATE=""
+PERIOD_DURATION_DAYS=""
 
 # --------------------------------------------------------------------------
 # Pre-process long options (getopts cannot handle --)
@@ -65,7 +75,7 @@ else
     set --
 fi
  
-while getopts "w:e:y:m:D:s:g:c:t:f" opt; do
+while getopts "w:e:y:m:D:s:g:c:t:f:P:" opt; do
     case $opt in
         w) WW3="$OPTARG" ;;
         e) EXP_NAME="$OPTARG" ;;
@@ -77,9 +87,45 @@ while getopts "w:e:y:m:D:s:g:c:t:f" opt; do
         c) CONFIG_DIR="$OPTARG" ;;
         t) TAGS="$OPTARG" ;;
         f) FORCE=true ;;
+        P) PERIOD_NAME="$OPTARG" ;;
         *) echo "Unknown option: -$opt"; exit 1 ;;
     esac
 done
+
+# --------------------------------------------------------------------------
+# Load named period (if -P was provided)
+# Must run BEFORE data/exp path construction so YEAR/MONTH are correct.
+# --------------------------------------------------------------------------
+if [[ -n "${PERIOD_NAME}" ]]; then
+    PERIOD_FILE="${BENCH_DIR}/periods/${PERIOD_NAME}.period"
+    if [[ ! -f "${PERIOD_FILE}" ]]; then
+        echo "ERROR: Period not found: ${PERIOD_FILE}"
+        echo "       Register it with: ${BENCH_DIR}/scripts/manage_periods.sh add ${PERIOD_NAME} --start YYYYMMDD --end YYYYMMDD"
+        exit 1
+    fi
+    # Source the period file — sets PERIOD_NAME, START_DATE, END_DATE, YEAR, MONTH
+    # shellcheck source=/dev/null
+    source "${PERIOD_FILE}"
+
+    # Warn when the period spans more than one calendar month
+    END_MONTH="${END_DATE:4:2}"
+    END_YEAR="${END_DATE:0:4}"
+    if [[ "${END_YEAR}${END_MONTH}" != "${YEAR}${MONTH}" ]]; then
+        echo "WARNING: Period '${PERIOD_NAME}' spans multiple months (${YEAR}/${MONTH} → ${END_YEAR}/${END_MONTH})"
+        echo "         Forcing files will be linked for start month: ${YEAR}_${MONTH}_wind.nc"
+        echo "         You may need to link additional forcing months manually."
+    fi
+
+    # Compute duration in fractional days for throughput logging
+    START_YYYYMMDD="${START_DATE:0:8}"
+    END_YYYYMMDD="${END_DATE:0:8}"
+    _ts_start=$(date -d "${START_YYYYMMDD:0:4}-${START_YYYYMMDD:4:2}-${START_YYYYMMDD:6:2}" +%s 2>/dev/null || echo "")
+    _ts_end=$(date   -d "${END_YYYYMMDD:0:4}-${END_YYYYMMDD:4:2}-${END_YYYYMMDD:6:2}"   +%s 2>/dev/null || echo "")
+    if [[ -n "${_ts_start}" && -n "${_ts_end}" && "${_ts_end}" -gt "${_ts_start}" ]]; then
+        PERIOD_DURATION_DAYS=$(echo "scale=4; (${_ts_end} - ${_ts_start}) / 86400" | bc)
+    fi
+    unset _ts_start _ts_end START_YYYYMMDD END_YYYYMMDD END_MONTH END_YEAR
+fi
 
 EXE_SRC="${WW3}/model/exe"
 EXE_LINK_DIR="${BENCH_DIR}/exe"
@@ -117,6 +163,10 @@ echo "  WW3 root   : ${WW3}"
 echo "  Switch     : ${SWITCH}"
 echo "  Grid       : ${GRID}"
 echo "  Config dir : ${CONFIG_DIR:-none (manual)}"
+echo "  Period     : ${PERIOD_NAME:-none}"
+[[ -n "${PERIOD_NAME}" ]] && echo "  Start date : ${START_DATE}"
+[[ -n "${PERIOD_NAME}" ]] && echo "  End date   : ${END_DATE}"
+[[ -n "${PERIOD_DURATION_DAYS}" ]] && echo "  Duration   : ${PERIOD_DURATION_DAYS} days"
 echo "  Data dir   : ${DATA_DIR}"
 echo "  Exp dir    : ${EXP_DIR}"
 echo "  Dry-run    : ${DRY_RUN}"
@@ -251,11 +301,23 @@ if [[ -n "${CONFIG_DIR}" ]]; then
         src="${CONFIG_DIR}/${nml}"
         if [[ -f "${src}" ]]; then
             run cp "${src}" "${WORK_DIR}/${nml}"
+            # Substitute period placeholders when -P is used
+            if [[ -n "${PERIOD_NAME}" && "${DRY_RUN}" == false ]]; then
+                sed -i \
+                    -e "s|{{START_DATE}}|${START_DATE}|g" \
+                    -e "s|{{END_DATE}}|${END_DATE}|g" \
+                    -e "s|{{YEAR}}|${YEAR}|g" \
+                    -e "s|{{MONTH}}|${MONTH}|g" \
+                    "${WORK_DIR}/${nml}" 2>/dev/null || true
+            fi
             echo "      copied: ${nml}"
             (( copied++ )) || true
         fi
     done
     echo "      ${copied} namelist(s) copied from ${CONFIG_DIR}"
+    if [[ -n "${PERIOD_NAME}" && "${DRY_RUN}" == false ]]; then
+        echo "      {{START_DATE}}/{{END_DATE}} placeholders substituted (period: ${PERIOD_NAME})"
+    fi
 else
     echo "      No -c config dir — copy namelists manually to ${WORK_DIR}/"
 fi
@@ -403,6 +465,12 @@ cat > "${META_JSON}" << EOF
     "work_dir": "${WORK_DIR}",
     "data_dir": "${DATA_DIR}",
     "grid_dir": "${GRID_DIR}"
+  },
+  "period": {
+    "name": "${PERIOD_NAME:-null}",
+    "start_date": "${START_DATE:-null}",
+    "end_date": "${END_DATE:-null}",
+    "duration_days": "${PERIOD_DURATION_DAYS:-null}"
   }
 }
 EOF
@@ -497,6 +565,12 @@ export DATA_DIR="${DATA_DIR}"
 export GRID="${GRID}"
 export GRID_DIR="${GRID_DIR}"
 export SWITCH="${SWITCH}"
+
+# --- Period (if -P was used at setup time) ---
+export PERIOD_NAME="${PERIOD_NAME}"
+export START_DATE="${START_DATE}"
+export END_DATE="${END_DATE}"
+export PERIOD_DURATION_DAYS="${PERIOD_DURATION_DAYS}"
 
 # --- Run parameters (populated at submission by run_exp.sh) ---
 # NODES, NTASKS_PER_NODE, NTASKS, WALL_TIME, SIM_DURATION
