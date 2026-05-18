@@ -92,7 +92,7 @@ elif [[ ! -f "ww3_prnc.nml" ]]; then
 fi
 [[ ! -f "wind.nc" ]] && echo "WARNING: wind.nc not found — ww3_prnc may fail"
 
-"${WORK_DIR}/ww3_prnc" | tee ww3_prnc.winds.out
+mpprun -n 1 "${WORK_DIR}/ww3_prnc" | tee ww3_prnc.winds.out
 if [[ "${PIPESTATUS[0]}" -ne 0 ]]; then
     echo "ERROR: ww3_prnc (winds) failed — check ww3_prnc.winds.out" >&2
     exit 1
@@ -111,7 +111,7 @@ if [[ -f "ww3_prnc_ice.nml.sic" ]]; then
     echo "[3/5] Running ww3_prnc (sea-ice concentration)..."
     [[ ! -f "ice.nc" ]] && echo "WARNING: ice.nc not found — SIC prnc may fail"
     cp ww3_prnc_ice.nml.sic ww3_prnc.nml
-    "${WORK_DIR}/ww3_prnc" | tee ww3_prnc.sic.out
+    mpprun -n 1 "${WORK_DIR}/ww3_prnc" | tee ww3_prnc.sic.out
     if [[ "${PIPESTATUS[0]}" -ne 0 ]]; then
         echo "ERROR: ww3_prnc (SIC) failed — check ww3_prnc.sic.out" >&2
         cp ww3_prnc_wind_active.nml ww3_prnc.nml
@@ -132,7 +132,7 @@ if [[ -f "ww3_prnc_ice.nml.thick" ]]; then
     echo "[4/5] Running ww3_prnc (sea-ice thickness)..."
     [[ ! -f "ice.nc" ]] && echo "WARNING: ice.nc not found — thickness prnc may fail"
     cp ww3_prnc_ice.nml.thick ww3_prnc.nml
-    "${WORK_DIR}/ww3_prnc" | tee ww3_prnc.thick.out
+    mpprun -n 1 "${WORK_DIR}/ww3_prnc" | tee ww3_prnc.thick.out
     if [[ "${PIPESTATUS[0]}" -ne 0 ]]; then
         echo "ERROR: ww3_prnc (thickness) failed — check ww3_prnc.thick.out" >&2
         cp ww3_prnc_wind_active.nml ww3_prnc.nml
