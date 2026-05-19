@@ -53,6 +53,8 @@ TAGS=""                # comma-separated tags e.g. "scaling,intel,arctic"
 PERIOD_NAME=""         # optional named period (loads from periods/<name>.period)
 FORCE=false
 DRY_RUN=false
+PPI_HOST="ppi"                      # hostname of source HPC (must be in ~/.ssh/config)
+PPI_FORCING_BASE="/lustre/storeB/project/fou/om/EuInterchange/WW3_hindcast/data"
 
 # CLI parameter overrides (-X KEY=VALUE) — applied after params.env
 declare -A EXTRA_PARAMS
@@ -266,27 +268,65 @@ done
     echo "      WARNING: ${missing_grid} grid file(s) missing — check ${GRID_DIR}"
 
 # --------------------------------------------------------------------------
-# [4/7] Link forcing files
-# Naming convention: YYYY_MM_<GRID>_wind.nc / YYYY_MM_<GRID>_ice.nc
+# [4/7] Link forcing files — auto-copy from ppi if missing locally
 # --------------------------------------------------------------------------
 echo "[4/7] Linking forcing files..."
- 
+run mkdir -p "${DATA_DIR}"
+
+# -- Wind --
 WIND_SRC="${DATA_DIR}/${YEAR}_${MONTH}_wind.nc"
+PPI_WIND="${PPI_HOST}:${PPI_FORCING_BASE}/${YEAR}/${MONTH}/${YEAR}_${MONTH}_CARRA2_wind.nc"
+if [[ ! -f "${WIND_SRC}" ]]; then
+    echo "      wind forcing not found locally — copying from ppi..."
+    if [[ "${DRY_RUN}" == true ]]; then
+        echo "  [DRY-RUN] scp ${PPI_WIND} ${WIND_SRC}"
+    else
+        scp "${PPI_WIND}" "${WIND_SRC}"
+        _scp_rc=$?
+        if [[ ${_scp_rc} -eq 0 ]]; then
+            echo "      wind forcing copied successfully from ppi"
+        else
+            echo "      ERROR: scp failed (exit ${_scp_rc}) for wind forcing"
+            echo "             Manual command: scp ${PPI_WIND} ${WIND_SRC}"
+            echo "      WARNING: wind.nc will not be linked — link manually after copy"
+        fi
+        unset _scp_rc
+    fi
+fi
 if [[ -f "${WIND_SRC}" ]]; then
     run ln -sf "${WIND_SRC}" "${WORK_DIR}/wind.nc"
     echo "      linked: wind.nc → ${WIND_SRC}"
 else
-    echo "      WARNING: wind forcing not found: ${WIND_SRC}"
-    echo "               Link manually: ln -s <path> ${WORK_DIR}/wind.nc"
+    echo "      WARNING: wind.nc still missing after copy attempt — link manually"
+    echo "               ln -s ${WIND_SRC} ${WORK_DIR}/wind.nc"
 fi
- 
+
+# -- Ice --
 ICE_SRC="${DATA_DIR}/${YEAR}_${MONTH}_ice.nc"
+PPI_ICE="${PPI_HOST}:${PPI_FORCING_BASE}/${YEAR}/${MONTH}/${YEAR}_${MONTH}_CARRA2_ice.nc"
+if [[ ! -f "${ICE_SRC}" ]]; then
+    echo "      ice forcing not found locally — copying from ppi..."
+    if [[ "${DRY_RUN}" == true ]]; then
+        echo "  [DRY-RUN] scp ${PPI_ICE} ${ICE_SRC}"
+    else
+        scp "${PPI_ICE}" "${ICE_SRC}"
+        _scp_rc=$?
+        if [[ ${_scp_rc} -eq 0 ]]; then
+            echo "      ice forcing copied successfully from ppi"
+        else
+            echo "      ERROR: scp failed (exit ${_scp_rc}) for ice forcing"
+            echo "             Manual command: scp ${PPI_ICE} ${ICE_SRC}"
+            echo "      WARNING: ice.nc will not be linked — link manually after copy"
+        fi
+        unset _scp_rc
+    fi
+fi
 if [[ -f "${ICE_SRC}" ]]; then
     run ln -sf "${ICE_SRC}" "${WORK_DIR}/ice.nc"
     echo "      linked: ice.nc → ${ICE_SRC}"
 else
-    echo "      WARNING: ice forcing not found: ${ICE_SRC}"
-    echo "               Link manually: ln -s <path> ${WORK_DIR}/ice.nc"
+    echo "      WARNING: ice.nc still missing after copy attempt — link manually"
+    echo "               ln -s ${ICE_SRC} ${WORK_DIR}/ice.nc"
 fi
 
 # --------------------------------------------------------------------------
