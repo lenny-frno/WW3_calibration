@@ -133,51 +133,51 @@ cd /nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/calibration
 
 bash scripts/manage_periods.sh add storm_berit_2011 \
   --start 20111122 --end 20111129 \
-  --description "Cyclone Berit: extreme windstorm over Norwegian Sea/Faroe Islands, 944 hPa, gusts ~51 m/s" \
+  --desc "Cyclone Berit: extreme windstorm over Norwegian Sea/Faroe Islands, 944 hPa, gusts ~51 m/s" \
   --tags "storm,calibration,norwegian_sea,bft12,2011"
 
 bash scripts/manage_periods.sh add storm_friedhelm_2011 \
-  --start 20111208 --end 20111213 \
-  --description "Cyclone Friedhelm (Hurricane Bawbag): powerful North Sea windstorm, 956 hPa, gusts ~47 m/s" \
+  --start 20111206 --end 20111213 \
+  --desc "Cyclone Friedhelm (Hurricane Bawbag): powerful North Sea windstorm, 956 hPa, gusts ~47 m/s" \
   --tags "storm,calibration,north_sea,bft12,2011"
 
 bash scripts/manage_periods.sh add storm_dagmar_2011 \
-  --start 20111224 --end 20111228 \
-  --description "Cyclone Dagmar (Patrick/Tapani): Christmas 2011, Norwegian coast landfall, 956 hPa, 44 m/s sustained" \
+  --start 20111222 --end 20111228 \
+  --desc "Cyclone Dagmar (Patrick/Tapani): Christmas 2011, Norwegian coast landfall, 956 hPa, 44 m/s sustained" \
   --tags "storm,calibration,norwegian_sea,bft12,2011"
 
 bash scripts/manage_periods.sh add storm_hilde_2013 \
-  --start 20131113 --end 20131119 \
-  --description "Storm Hilde: extreme weather warning Norway, Norwegian Sea, 971 hPa, gusts ~45 m/s" \
+  --start 20131111 --end 20131119 \
+  --desc "Storm Hilde: extreme weather warning Norway, Norwegian Sea, 971 hPa, gusts ~45 m/s" \
   --tags "storm,calibration,norwegian_sea,bft12,2013"
 
 bash scripts/manage_periods.sh add storm_xaver_2013 \
-  --start 20131204 --end 20131211 \
-  --description "Cyclone Xaver: most serious North Sea storm surge in 60 years, 962 hPa, Force 12" \
+  --start 20131202 --end 20131211 \
+  --desc "Cyclone Xaver: most serious North Sea storm surge in 60 years, 962 hPa, Force 12" \
   --tags "storm,calibration,north_sea,norwegian_sea,bft12,2013"
 
 bash scripts/manage_periods.sh add storm_ciara_2020 \
-  --start 20200208 --end 20200213 \
-  --description "Storm Ciara (Sabine/Elsa): Norwegian Sea/North Sea, 943 hPa, gusts ~49 m/s Lofoten" \
+  --start 20200206 --end 20200213 \
+  --desc "Storm Ciara (Sabine/Elsa): Norwegian Sea/North Sea, 943 hPa, gusts ~49 m/s Lofoten" \
   --tags "storm,calibration,norwegian_sea,north_sea,bft12,2020"
 
 bash scripts/manage_periods.sh add storm_dennis_2020 \
-  --start 20200213 --end 20200218 \
-  --description "Storm Dennis (Victoria): 920 hPa, among deepest N Atlantic extratropical cyclones on record" \
+  --start 20200211 --end 20200218 \
+  --desc "Storm Dennis (Victoria): 920 hPa, among deepest N Atlantic extratropical cyclones on record" \
   --tags "storm,calibration,norwegian_sea,north_sea,bft12,2020"
 
 bash scripts/manage_periods.sh add storm_malik_2022 \
-  --start 20220128 --end 20220131 \
-  --description "Storm Malik: North Sea/Norwegian Sea, 965 hPa, gusts ~54 m/s (196 km/h)" \
+  --start 20220126 --end 20220131 \
+  --desc "Storm Malik: North Sea/Norwegian Sea, 965 hPa, gusts ~54 m/s (196 km/h)" \
   --tags "storm,calibration,north_sea,norwegian_sea,bft12,2022"
 
 bash scripts/manage_periods.sh add storm_ingunn_2024 \
-  --start 20240130 --end 20240202 \
-  --description "Storm Ingunn (Margrit): 941 hPa, strongest Norway storm in 30 yrs, gusts 249 km/h Faroes" \
+  --start 20240128 --end 20240202 \
+  --desc "Storm Ingunn (Margrit): 941 hPa, strongest Norway storm in 30 yrs, gusts 249 km/h Faroes" \
   --tags "storm,calibration,norwegian_sea,bft12,2024"
 
 bash scripts/manage_periods.sh add storm_eowyn_2025 \
-  --start 20250121 --end 20250127 \
-  --description "Storm Eowyn (Gilles): 941.9 hPa, powerful Norwegian Sea system, Bft 12, Jan 2025" \
+  --start 20250119 --end 20250127 \
+  --desc "Storm Eowyn (Gilles): 941.9 hPa, powerful Norwegian Sea system, Bft 12, Jan 2025" \
   --tags "storm,calibration,norwegian_sea,bft12,2025"
 ```
