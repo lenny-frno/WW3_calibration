@@ -118,9 +118,16 @@ fi
 # --------------------------------------------------------------------------
 CONFIG_FILE="${BENCH_DIR}/experiments/${EXP_NAME}/exp_config.sh"
 if [[ ! -f "${CONFIG_FILE}" ]]; then
-    echo "ERROR: Experiment config not found: ${CONFIG_FILE}"
-    echo "       Did you run: ./setup.sh -e ${EXP_NAME}"
-    exit 1
+    # Grouped layout: experiments/<group>/<exp_name>/
+    CONFIG_FILE=$(find "${BENCH_DIR}/experiments" -maxdepth 3 \
+        -name exp_config.sh -path "*/${EXP_NAME}/exp_config.sh" \
+        2>/dev/null | head -1)
+    if [[ -z "${CONFIG_FILE}" ]]; then
+        echo "ERROR: Experiment config not found for '${EXP_NAME}'"
+        echo "       Run: ./setup.sh -e ${EXP_NAME}   (or supply the group with --exp-group)"
+        exit 1
+    fi
+    echo "  (found in group: ${CONFIG_FILE%/*/*} → $(basename "$(dirname "$(dirname "${CONFIG_FILE}")")")/)"
 fi
 source "${CONFIG_FILE}"
 

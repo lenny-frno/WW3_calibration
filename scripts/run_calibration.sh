@@ -180,6 +180,7 @@ function main() {
     local all_periods=false
     local dry_run=false
     local omph=false
+    local use_groups=false
     local fwd_args=()
     local extra_x_args=()
     local -a sweep_keys=()
@@ -225,6 +226,8 @@ function main() {
                 omph=true ;;
             --all-periods)
                 all_periods=true ;;
+            --use-groups)
+                use_groups=true ;;
             --dry-run)
                 dry_run=true
                 fwd_args+=("--dry-run") ;;
@@ -307,6 +310,7 @@ function main() {
     [[ ${#extra_x_args[@]} -gt 0 ]]    && echo "  -X overrides: ${extra_x_args[*]}"
     [[ ${#sweep_combos[@]} -gt 1 ]]    && echo "  Sweep combos: ${#sweep_combos[@]}  (${sweep_combos[*]})"
     echo "  OMPH patch  : ${omph}"
+    echo "  Use groups  : ${use_groups}"
     echo "  Dry-run     : ${dry_run}"
     [[ ${#fwd_args[@]} -gt 0 ]]        && echo "  Fwd to run_exp: ${fwd_args[*]}"
     echo "  Total exps  : ${total_experiments}"
@@ -336,7 +340,18 @@ function main() {
         local period
         for period in "${period_list[@]}"; do
             local pf="${PERIODS_DIR}/${period}.period"
-            local exp_name="${exp_prefix}${combo_suffix}__${period}"
+
+            # --use-groups: group = physics fingerprint, exp = period
+            # Default: flat  exp_name = prefix + combo_suffix + __ + period
+            local exp_name exp_group
+            if [[ "${use_groups}" == true ]]; then
+                exp_group="${exp_prefix}${combo_suffix}"
+                exp_name="${period}"
+            else
+                exp_group=""
+                exp_name="${exp_prefix}${combo_suffix}__${period}"
+            fi
+            local log_name="${exp_group:+${exp_group}/}${exp_name}"
 
             # Extract period dates for logging (without sourcing into current shell)
             local start_date end_date period_duration_days
@@ -347,7 +362,11 @@ function main() {
             echo "------------------------------------------------------------"
             [[ -n "${combo_suffix}" ]] && echo "  Sweep     : ${sweep_combo}"
             echo "  Period    : ${period}"
+            if [[ -n "${exp_group}" ]]; then
+            echo "  Group     : ${exp_group}"
+            fi
             echo "  Exp name  : ${exp_name}"
+            echo "  Path      : experiments/${exp_group:+${exp_group}/}${exp_name}"
             echo "  Dates     : ${start_date} → ${end_date}"
             [[ -n "${period_duration_days}" ]] && echo "  Duration  : ${period_duration_days} days"
             echo "------------------------------------------------------------"
@@ -363,13 +382,14 @@ function main() {
                 -P "${period}"
             )
             [[ -n "${ww3_dir}" ]]            && setup_cmd+=(-w "${ww3_dir}")
+            [[ -n "${exp_group}" ]]           && setup_cmd+=(--exp-group "${exp_group}")
             [[ ${#extra_x_args[@]} -gt 0 ]]  && setup_cmd+=("${extra_x_args[@]}")
             [[ ${#combo_x_args[@]} -gt 0 ]]  && setup_cmd+=("${combo_x_args[@]}")
             [[ "${dry_run}" == true ]]        && setup_cmd+=("--dry-run")
 
             if ! "${setup_cmd[@]}"; then
                 echo -e "${RED}ERROR:${NC} setup.sh failed for '${exp_name}' — skipping." >&2
-                append_log "${config_name}" "${period}" "${exp_name}" \
+                append_log "${config_name}" "${period}" "${log_name}" \
                     "${start_date}" "${end_date}" "?" "?" "FAILED_SETUP" "SETUP_FAILED"
                 (( n_failed++ )) || true
                 echo ""
@@ -380,7 +400,14 @@ function main() {
             # Step 2 — OMPH env.sh patch (if --omph)
             # ----------------------------------------------------------------
             if [[ "${omph}" == true ]]; then
-                local env_file="${BENCH_DIR}/experiments/${exp_name}/metadata/setup/env.sh"
+                # Resolve env.sh path (supports both flat and grouped layouts)
+                local exp_dir_path
+                if [[ -n "${exp_group}" ]]; then
+                    exp_dir_path="${BENCH_DIR}/experiments/${exp_group}/${exp_name}"
+                else
+                    exp_dir_path="${BENCH_DIR}/experiments/${exp_name}"
+                fi
+                local env_file="${exp_dir_path}/metadata/setup/env.sh"
                 if [[ "${dry_run}" == true ]]; then
                     echo "[DRY-RUN] Would patch ${env_file} with WW3_OMP_THREADS=2"
                 elif [[ -f "${env_file}" ]]; then
@@ -421,7 +448,7 @@ function main() {
             if ! run_output=$("${run_cmd[@]}" 2>&1); then
                 echo -e "${RED}ERROR:${NC} run_exp.sh failed for '${exp_name}'." >&2
                 echo "${run_output}" >&2
-                append_log "${config_name}" "${period}" "${exp_name}" \
+                append_log "${config_name}" "${period}" "${log_name}" \
                     "${start_date}" "${end_date}" "?" "?" "FAILED_SUBMIT" "SUBMIT_FAILED"
                 (( n_failed++ )) || true
                 echo ""
@@ -436,11 +463,11 @@ function main() {
             ntasks_logged=$(echo "${run_output}" | grep -E 'Total tasks\s*:' | grep -oE '[0-9]+' | head -1)
             ntasks_logged="${ntasks_logged:-?}"
 
-            append_log "${config_name}" "${period}" "${exp_name}" \
+            append_log "${config_name}" "${period}" "${log_name}" \
                 "${start_date}" "${end_date}" "?" "${ntasks_logged}" \
                 "${shel_job_id}" "SUBMITTED"
 
-            echo -e "${GREEN}Logged:${NC} ${exp_name} (shel job: ${shel_job_id})"
+            echo -e "${GREEN}Logged:${NC} ${log_name} (shel job: ${shel_job_id})"
             (( n_success++ )) || true
             echo ""
         done  # period loop

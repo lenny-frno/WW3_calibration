@@ -57,6 +57,15 @@ if [[ -z "${EXP_NAME}" ]]; then
 fi
 
 EXP_DIR="${BENCH_DIR}/experiments/${EXP_NAME}"
+if [[ ! -d "${EXP_DIR}" ]]; then
+    # Grouped layout: experiments/<group>/<exp_name>/
+    _found=$(find "${BENCH_DIR}/experiments" -maxdepth 3 \
+        -type d -name "${EXP_NAME}" 2>/dev/null | head -1)
+    if [[ -n "${_found}" ]]; then
+        EXP_DIR="${_found}"
+    fi
+    unset _found
+fi
 WORK_DIR="${EXP_DIR}/work"
 LOGS_DIR="${EXP_DIR}/logs"
 META_DIR="${EXP_DIR}/metadata"

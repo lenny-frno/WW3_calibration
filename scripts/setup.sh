@@ -55,6 +55,7 @@ FORCE=false
 DRY_RUN=false
 PPI_HOST="ppi"                      # hostname of source HPC (must be in ~/.ssh/config)
 PPI_FORCING_BASE="/lustre/storeB/project/fou/om/EuInterchange/WW3_hindcast/data"
+EXP_GROUP=""          # optional: place experiment under experiments/<group>/<exp_name>/
 
 # CLI parameter overrides (-X KEY=VALUE) — applied after params.env
 declare -A EXTRA_PARAMS
@@ -63,16 +64,22 @@ END_DATE=""
 PERIOD_DURATION_DAYS=""
 
 # --------------------------------------------------------------------------
-# Pre-process long options (getopts cannot handle --)
+# Pre-process long options (getopts cannot handle value-taking -- options)
 # --------------------------------------------------------------------------
 ARGS=()
-for arg in "$@"; do
-    case "${arg}" in
-        --dry-run) DRY_RUN=true ;;
-        --force)   FORCE=true ;;
-        *)         ARGS+=("${arg}") ;;
+_prepass_args=("$@")
+_i=0
+while [[ ${_i} -lt ${#_prepass_args[@]} ]]; do
+    _arg="${_prepass_args[${_i}]}"
+    case "${_arg}" in
+        --dry-run)    DRY_RUN=true ;;
+        --force)      FORCE=true ;;
+        --exp-group)  _i=$(( _i + 1 )); EXP_GROUP="${_prepass_args[${_i}]}" ;;
+        *)            ARGS+=("${_arg}") ;;
     esac
+    _i=$(( _i + 1 ))
 done
+unset _prepass_args _i _arg
 # Safe even when ARGS is empty (avoids nounset expansion failure)
 if [[ ${#ARGS[@]} -gt 0 ]]; then
     set -- "${ARGS[@]}"
@@ -160,7 +167,11 @@ EXE_SRC="${WW3}/model/exe"
 EXE_LINK_DIR="${BENCH_DIR}/exe"
 DATA_DIR="${DATA_ROOT}/${YEAR}/${MONTH}/forcings"
 GRID_DIR="${DATA_ROOT}/const/grid/${GRID}"
-EXP_DIR="${BENCH_DIR}/experiments/${EXP_NAME}"
+if [[ -n "${EXP_GROUP}" ]]; then
+    EXP_DIR="${BENCH_DIR}/experiments/${EXP_GROUP}/${EXP_NAME}"
+else
+    EXP_DIR="${BENCH_DIR}/experiments/${EXP_NAME}"
+fi
 WORK_DIR="${EXP_DIR}/work"
 LOGS_DIR="${EXP_DIR}/logs"
 META_DIR="${EXP_DIR}/metadata"
@@ -688,6 +699,7 @@ cat > "${CONFIG_FILE}" << EOF
 
 # --- Identity ---
 export EXP_NAME="${EXP_NAME}"
+export EXP_GROUP="${EXP_GROUP}"
 export TAGS="${TAGS}"
 export FRAMEWORK_VERSION="${FRAMEWORK_VERSION}"
 export WW3_GIT_COMMIT="${GIT_COMMIT:-none}"

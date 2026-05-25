@@ -15,7 +15,9 @@ WW3_compilation/
 ├── scripts/
 │   ├── setup.sh              # Step 1 — initialise a new experiment
 │   ├── run_exp.sh            # Step 2 — submit jobs and chain dependencies
-│   ├── check_exp.sh          # Diagnose any experiment without resubmitting
+│   ├── check_exp.sh          # Diagnose a single experiment in detail
+│   ├── scan_experiments.sh   # Batch dashboard + interactive cleanup for all experiments
+│   ├── migrate_groups.sh     # Reorganise flat experiments/ into group subdirectories
 │   └── log_performance.sh    # Post-run metrics collection
 ├── jobs/
 │   ├── run_shel.job          # WW3 MPI job (called by run_exp.sh)
@@ -42,22 +44,17 @@ WW3_compilation/
 └── README.md
  
 └── experiments/              # gitignored — created at runtime by setup.sh
-    └── <exp_name>/
-        ├── exp_config.sh         # Single source of truth — sourced by all jobs
-        ├── work/                 # Input symlinks + copied namelists
-        ├── logs/                 # Slurm .LOG / .ERR per job step
-        └── metadata/
-            ├── setup/            # LOCKED after creation
-            │   ├── model_info.txt    # WW3 version, switch, compiler, git
-            │   ├── metadata.json     # Structured provenance (JSON)
-            │   ├── env.sh            # Runtime module environment for jobs
-            │   └── switch_<name>     # Copy of WW3 switch file
-            └── runtime/          # WRITABLE — populated at run time
-                ├── run_config_*.txt  # Job parameters at each submission
-                ├── timing_raw.txt    # Written by run_shel.job on completion
-                ├── performance_*.txt # Human-readable performance report
-                ├── performance_*.json
-                └── last_jobids.txt   # Slurm job IDs from last submission
+    ├── <exp_name>/               # Flat layout (default)
+    │   ├── exp_config.sh
+    │   ├── work/
+    │   ├── logs/
+    │   └── metadata/
+    └── <group>/                  # Grouped layout (run_calibration.sh --use-groups or setup.sh --exp-group)
+        └── <exp_name>/
+            ├── exp_config.sh
+            ├── work/
+            ├── logs/
+            └── metadata/
 ```
 ---
 ## Motivation
@@ -177,16 +174,62 @@ cp /path/to/ww3_shel_1d.nml    experiments/CARRA2_ref_oneVar/work/
 - Omit entirely — use cluster default (works but not predictable across node types)
 
 ### 3. Diagnose an experiment
- 
+
+**Overview of all experiments at once:**
+
+```bash
+# Full dashboard (colour-coded table)
+./scripts/scan_experiments.sh
+
+# Show only failed or cancelled experiments
+./scripts/scan_experiments.sh --status FAILED,CANCELLED
+
+# Filter by tag (e.g. only calibration runs)
+./scripts/scan_experiments.sh --tag calibration
+
+# Experiments in a specific group subfolder
+./scripts/scan_experiments.sh --group phase3
+
+# Machine-readable CSV
+./scripts/scan_experiments.sh --csv > scan_$(date +%Y%m%d).csv
+
+# Interactive cleanup — select experiments to remove
+./scripts/scan_experiments.sh --status FAILED,CANCELLED --clean
+./scripts/scan_experiments.sh --status FAILED,CANCELLED --clean --dry-run  # preview first
+```
+
+`scan_experiments.sh` supports both a flat `experiments/<name>/` layout and a grouped
+`experiments/<group>/<name>/` layout simultaneously.
+
+**Reorganise existing flat experiments into groups:**
+
+```bash
+# Preview what would be grouped (always start with dry-run)
+./scripts/migrate_groups.sh --by-physics --dry-run   # calibration: group=physics, sub=period
+./scripts/migrate_groups.sh --by-tag     --dry-run   # benchmarks: group=phase tag
+
+# Execute (asks for confirmation)
+./scripts/migrate_groups.sh --by-physics --apply
+
+# Move specific experiments manually
+./scripts/migrate_groups.sh --group phase4 --experiments p4_pin_scatter_n60,p4_dtxy_90_ref_n60 --apply
+```
+
+After migration, `exp_config.sh` paths are automatically updated. Both
+`scan_experiments.sh`, `run_exp.sh`, and `check_exp.sh` detect the grouped layout
+transparently (no flags needed after migration).
+
+**Detailed single-experiment inspection:**
+
 ```bash
 ./scripts/check_exp.sh -e CARRA2_ref_oneVar       # summary
 ./scripts/check_exp.sh -e CARRA2_ref_oneVar -v    # verbose (full log tails)
 ./scripts/check_exp.sh -e CARRA2_ref_oneVar -j 36239  # query a specific job ID
 ```
- 
+
 `check_exp.sh` inspects without resubmitting: directory structure, symlink health,
 WW3 log analysis (`End of program`, FATAL ERROR, timestep count), sacct state,
-Slurm ERR log snippets, and the performance report summary.i
+Slurm ERR log snippets, and the performance report summary.
 
 ### 4. Monitor
 

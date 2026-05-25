@@ -332,15 +332,15 @@ e.g. `with_sic__w1_99_w2_00__omph__BETAMAX_143__storm_eunice_2022`
 ## Phase 1 — post-run evaluation
 
 ```bash
-# Status — grouped by binary (new naming: prefix__bin__BETAMAX_TAG__period)
-for BIN in ref p3avx2 omph; do
-  echo "=== Binary: ${BIN} ==="
-  for d in experiments/with_sic__w1_99_w2_00__${BIN}__BETAMAX_*; do
-    exp=$(basename "${d}")
-    printf "  %-80s  " "${exp}"
-    ./scripts/check_exp.sh "${exp}" 2>/dev/null | grep -E "WW3 status|Elapsed" || echo "(no info)"
-  done
-done
+# Dashboard: all Phase 1 experiments at a glance
+./scripts/scan_experiments.sh --tag calibration
+
+# Filter to only failures / cancellations
+./scripts/scan_experiments.sh --tag calibration --status FAILED,CANCELLED
+
+# Clean up unwanted experiments interactively
+./scripts/scan_experiments.sh --status FAILED,CANCELLED --clean --dry-run
+./scripts/scan_experiments.sh --status FAILED,CANCELLED --clean
 
 # Full calibration log
 ./scripts/manage_periods.sh log
@@ -365,9 +365,9 @@ OMPH_WW3="/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/compilatio
 
 # -----------------------------------------------------------------------
 # Full WCOR grid — 4 W1 × 3 W2 = 12 combos × 11 periods
-# (W1=99/W2=0.0 was already run in Phase 1; it will be re-submitted here
-#  unless you exclude it — remove it from --sweep W1 and run separately
-#  or just let it re-run as a consistency check)
+# Add --use-groups to place experiments in a grouped layout:
+#   experiments/<physics_fingerprint>/<period>/
+# e.g. experiments/with_sic__bm155__omph__MISC_WCOR1_150__MISC_WCOR2_01/storm_eunice_2022/
 # -----------------------------------------------------------------------
 ./scripts/run_calibration.sh \
   -c configs/with_sic --all-periods \
@@ -376,11 +376,19 @@ OMPH_WW3="/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/compilatio
   --sweep MISC_WCOR2=0.0,0.1,0.2 \
   -X BETAMAX="${BEST_BM}" \
   -e "with_sic__bm${BEST_BM//./}__omph" \
+  --use-groups \
   -N 16 -n 60 --cpus-per-task 2 --post
 ```
 
-Experiment naming pattern: `with_sic__bm<BM>__omph__MISC_WCOR1_<w1tag>__MISC_WCOR2_<w2tag>__<period>`
-e.g. `with_sic__bm155__omph__MISC_WCOR1_150__MISC_WCOR2_01__storm_xaver_2013`
+With `--use-groups`, experiments for the same physics combo are collected under one
+group directory — each storm period is a distinct sub-experiment. This makes it easy
+to compare all periods for a given parameter combination at a glance.
+
+Flat naming (without `--use-groups`):
+`with_sic__bm155__omph__MISC_WCOR1_150__MISC_WCOR2_01__storm_xaver_2013`
+
+Grouped naming (`--use-groups`):
+`experiments/with_sic__bm155__omph__MISC_WCOR1_150__MISC_WCOR2_01/storm_xaver_2013/`
 
 > **132 jobs** (12 WCOR combos × 11 periods). The W1=99/W2=0.0 row matches Phase 1 physics
 > and can serve as a cross-check. To skip it, split into two calls: one for W1=99 with
@@ -391,23 +399,18 @@ e.g. `with_sic__bm155__omph__MISC_WCOR1_150__MISC_WCOR2_01__storm_xaver_2013`
 ## Monitoring
 
 ```bash
-# Phase 1 — all binary / period combinations
-for BIN in ref p3avx2 omph; do
-  echo "=== ${BIN} ==="
-  for d in experiments/with_sic__w1_99_w2_00__${BIN}__BETAMAX_*; do
-    exp=$(basename "${d}")
-    printf "  %-80s  " "${exp}"
-    ./scripts/check_exp.sh "${exp}" 2>/dev/null | grep -E "WW3 status|Elapsed" || echo "(no info)"
-  done
-done
+# Dashboard: all calibration experiments at a glance (colour-coded table)
+./scripts/scan_experiments.sh --tag calibration
 
-# Phase 2 — WCOR sweep (omph only)
-BEST_BM_TAG="155"    # ← set to match Phase 1 winner
-for d in experiments/with_sic__bm${BEST_BM_TAG}__omph__MISC_WCOR*; do
-  exp=$(basename "${d}")
-  printf "%-90s  " "${exp}"
-  ./scripts/check_exp.sh "${exp}" 2>/dev/null | grep -E "WW3 status|Elapsed" || echo "(no info)"
-done
+# Filter to failures / cancellations only
+./scripts/scan_experiments.sh --tag calibration --status FAILED,CANCELLED
+
+# Interactively remove failed/cancelled experiments
+./scripts/scan_experiments.sh --status FAILED,CANCELLED --clean --dry-run  # preview
+./scripts/scan_experiments.sh --status FAILED,CANCELLED --clean             # confirm
+
+# Detailed single-experiment inspection
+./scripts/check_exp.sh -e <exp_name>
 
 # Full calibration log
 ./scripts/manage_periods.sh log
