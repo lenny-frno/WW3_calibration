@@ -2,38 +2,61 @@
 # =============================================================================
 # run_calibration.sh — Dispatch a WW3 config across multiple named storm periods
 # =============================================================================
-# Version: 1.0
+# Version: 1.1
 #
-# For each specified period:
-#   1. Calls setup.sh -c <config_dir> -P <period> -e <prefix>__<period>
-#   2. Calls run_exp.sh -e <prefix>__<period> [...forwarded options...]
-#   3. Appends a row to periods/calibration_log.csv
+# For each specified period (× each parameter sweep combo):
+#   1. Calls setup.sh -c <config_dir> -P <period> -e <exp_name> [-w] [-X ...]
+#   2. Optionally patches env.sh for OMPH binary (--omph)
+#   3. Calls run_exp.sh -e <exp_name> [...forwarded options...]
+#   4. Appends a row to periods/calibration_log.csv
 #
 # Usage:
-#   run_calibration.sh -c <config_dir> -P <p1>[,<p2>,...] [run_exp options]
-#   run_calibration.sh -c <config_dir> --all-periods [run_exp options]
+#   run_calibration.sh -c <config_dir> -P <p1>[,<p2>,...] [options] [run_exp options]
+#   run_calibration.sh -c <config_dir> --all-periods [options] [run_exp options]
 #
-# Options:
-#   -c  <config_dir>          Config/namelist directory (required)
-#                             e.g. configs/CARRA2_exp_1  or  CARRA2_exp_1
-#   -P  <p1>[,<p2>,...]       Comma-separated period name(s) (required unless --all-periods)
-#   -e  <prefix>              Experiment name prefix (default: config dir basename)
-#                             Exp dirs will be named  <prefix>__<period>
-#   --all-periods             Use every .period file found in periods/
-#   --dry-run                 Passed to both setup.sh and run_exp.sh; no submissions
-#   -h|--help                 Show this help
+# This script's own options:
+#   -c  <config_dir>               Config/namelist directory (required)
+#   -P  <p1>[,<p2>,...]            Comma-separated period names (or --all-periods)
+#   -e  <prefix>                   Experiment name prefix (default: config dir basename)
+#                                  Exp dirs named:  <prefix>[__SWEEP_TAG]__<period>
+#   -w  <ww3_dir>                  WW3 binary root dir; forwarded to setup.sh
+#   -X  KEY=VALUE                  Namelist override; forwarded to setup.sh (repeatable)
+#   --sweep KEY=v1,v2,...          Sweep a parameter over a list of values (repeatable).
+#                                  Generates one experiment per value (x per period).
+#                                  Multiple --sweep flags produce a Cartesian product.
+#                                  Auto-appended to exp name as __KEY_VTAG.
+#   --omph                         After each setup, inject WW3_OMP_THREADS=2 and
+#                                  I_MPI_ASYNC_PROGRESS=0 into metadata/setup/env.sh.
+#                                  Required when using the omph (MPI+OMP) binary.
+#   --all-periods                  Use every .period file found in periods/
+#   --dry-run                      No submissions or directories created
+#   -h|--help                      Show this help
 #
 # All other flags are forwarded verbatim to run_exp.sh:
 #   -N, -n, --ntasks, --cpus-per-task, --mem-per-cpu, -t, --post, -s, -p, etc.
 #
 # Examples:
-#   ./run_calibration.sh -c configs/CARRA2_exp_1 -P storm_eunice_2022 -N 12 -n 56 -t 02:00:00 --post
-#   ./run_calibration.sh -c configs/CARRA2_exp_1 -P storm_eunice_2022,storm_babet_2023 -N 12 -n 56
-#   ./run_calibration.sh -c configs/CARRA2_exp_1 --all-periods -N 12 -n 56 --dry-run
+#   # Simple: one config, two periods, fixed params
+#   ./run_calibration.sh -c configs/with_sic -P storm_eunice_2022,storm_xaver_2013 \
+#       -w /path/to/WW3 -X BETAMAX=1.43 -X MISC_WCOR1=99 -X MISC_WCOR2=0.0 \
+#       -N 16 -n 60 -t 00:30:00 --post
+#
+#   # BETAMAX sweep x all periods, omph binary:
+#   ./run_calibration.sh -c configs/with_sic --all-periods \
+#       -w "${OMPH_WW3}" --omph \
+#       --sweep BETAMAX=1.33,1.43,1.50,1.55,1.65,1.75 \
+#       -X MISC_WCOR1=99 -X MISC_WCOR2=0.0 \
+#       -e with_sic__w1_99_w2_00__omph \
+#       -N 16 -n 60 --cpus-per-task 2 --post
+#
+#   # 2-D sweep (Cartesian: 3 BM x 3 W1 = 9 combos x 2 periods = 18 experiments):
+#   ./run_calibration.sh -c configs/with_sic -P storm_eunice_2022,storm_xaver_2013 \
+#       --sweep BETAMAX=1.43,1.55,1.65 --sweep MISC_WCOR1=99,15.0,25.0 \
+#       -X MISC_WCOR2=0.0 -w "${OMPH_WW3}" --omph -N 16 -n 60 --post
 # =============================================================================
 
 SCRIPT_NAME=$(basename "$0")
-VERSION="1.0"
+VERSION="1.1"
 BENCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PERIODS_DIR="${BENCH_DIR}/periods"
 CAL_LOG="${PERIODS_DIR}/calibration_log.csv"
@@ -59,33 +82,76 @@ ${BOLD}Usage:${NC}
   ${SCRIPT_NAME} -c <config_dir> --all-periods [run_exp options]
 
 ${BOLD}Required:${NC}
-  -c  <config_dir>            Config/namelist directory  (e.g. configs/CARRA2_exp_1)
+  -c  <config_dir>            Config/namelist directory  (e.g. configs/with_sic)
   -P  <p1>[,<p2>,...]         Comma-separated period names  OR  use --all-periods
 
 ${BOLD}Optional:${NC}
   -e  <prefix>                Experiment name prefix (default: config dirname)
-                              Experiment dirs: <prefix>__<period_name>
+                              Experiment dirs: <prefix>[__SWEEP_TAG]__<period_name>
+  -w  <ww3_dir>               WW3 binary root dir (forwarded to setup.sh as -w)
+  -X  KEY=VALUE               Namelist override — passed to setup.sh (repeatable)
+  --sweep KEY=v1,v2,...       Sweep a parameter over values (repeatable).
+                              Multiple --sweep flags produce a Cartesian product.
+                              Auto-appends __KEY_VTAG to the exp name per combo.
+  --omph                      Inject WW3_OMP_THREADS=2 + I_MPI_ASYNC_PROGRESS=0
+                              into env.sh after setup (required for omph binary)
   --all-periods               Run every .period file found in ${PERIODS_DIR}/
   --dry-run                   No submissions or directories created
   -h|--help                   Show this help
 
-${BOLD}Forwarded to run_exp.sh (pass after your -c / -P flags):${NC}
+${BOLD}Forwarded to run_exp.sh:${NC}
   -N <nodes>  -n <tasks/node>  --ntasks <N>  --cpus-per-task <N>
   --mem-per-cpu <MB>  -t <wall_time>  --post  -s  -p
 
 ${BOLD}Examples:${NC}
-  ${SCRIPT_NAME} -c configs/CARRA2_exp_1 -P storm_eunice_2022 -N 12 -n 56 -t 02:00:00 --post
-  ${SCRIPT_NAME} -c configs/CARRA2_exp_1 -P storm_eunice_2022,storm_babet_2023 -N 12 -n 56
-  ${SCRIPT_NAME} -c configs/CARRA2_exp_1 --all-periods -N 12 -n 56 --dry-run
+  # Fixed params, two periods:
+  ${SCRIPT_NAME} -c configs/with_sic -P storm_eunice_2022,storm_xaver_2013 \\
+      -w /path/to/WW3 -X BETAMAX=1.43 -X MISC_WCOR1=99 -N 16 -n 60 --post
+
+  # Sweep BETAMAX x all periods, omph binary:
+  ${SCRIPT_NAME} -c configs/with_sic --all-periods \\
+      -w "\${OMPH_WW3}" --omph \\
+      --sweep BETAMAX=1.33,1.43,1.50,1.55,1.65,1.75 \\
+      -X MISC_WCOR1=99 -X MISC_WCOR2=0.0 \\
+      -e with_sic__w1_99_w2_00__omph -N 16 -n 60 --cpus-per-task 2 --post
+
+  # 2-D sweep (Cartesian: 3 BM x 3 W1 = 9 combos x 2 periods = 18 experiments):
+  ${SCRIPT_NAME} -c configs/with_sic -P storm_eunice_2022,storm_xaver_2013 \\
+      --sweep BETAMAX=1.43,1.55,1.65 --sweep MISC_WCOR1=99,15.0,25.0 \\
+      -X MISC_WCOR2=0.0 -w "\${OMPH_WW3}" --omph -N 16 -n 60 --post
 
 ${BOLD}Period management:${NC}
   Register periods first:
     ./manage_periods.sh add storm_eunice_2022 --start 20220218 --end 20220221 --desc "Storm Eunice"
   View log:
-    ./manage_periods.sh log --config CARRA2_exp_1
+    ./manage_periods.sh log --config with_sic
 
 EOM
     exit 1
+}
+
+# Build the Cartesian product of all --sweep dimensions.
+# sweep_keys and sweep_values must be declared in the calling scope.
+# Populates the caller's combos array (passed by name).
+# Each element is a space-separated list of "KEY=VALUE" pairs.
+function build_combos() {
+    local -n _result_combos=$1
+    _result_combos=("")   # start with one empty combo
+    local ki
+    for ki in "${!sweep_keys[@]}"; do
+        local key="${sweep_keys[$ki]}"
+        local -a vals
+        IFS=',' read -r -a vals <<< "${sweep_values[$ki]}"
+        local new_combos=()
+        local combo v
+        for combo in "${_result_combos[@]}"; do
+            for v in "${vals[@]}"; do
+                v="${v// /}"  # strip stray spaces
+                new_combos+=("${combo:+${combo} }${key}=${v}")
+            done
+        done
+        _result_combos=("${new_combos[@]}")
+    done
 }
 
 function ensure_log() {
@@ -110,9 +176,14 @@ function main() {
     local config_dir=""
     local periods_arg=""
     local exp_prefix=""
+    local ww3_dir=""
     local all_periods=false
     local dry_run=false
+    local omph=false
     local fwd_args=()
+    local extra_x_args=()
+    local -a sweep_keys=()
+    local -a sweep_values=()
 
     # Manual argument parsing — collect our flags, forward everything else
     local i=0
@@ -133,6 +204,25 @@ function main() {
                 i=$(( i + 1 )); exp_prefix="${args[${i}]}" ;;
             -e*)
                 exp_prefix="${arg#-e}" ;;
+            -w)
+                i=$(( i + 1 )); ww3_dir="${args[${i}]}" ;;
+            -w*)
+                ww3_dir="${arg#-w}" ;;
+            -X)
+                i=$(( i + 1 )); extra_x_args+=(-X "${args[${i}]}") ;;
+            -X*)
+                extra_x_args+=(-X "${arg#-X}") ;;
+            --sweep)
+                i=$(( i + 1 ))
+                local _sw="${args[${i}]}"
+                local _sk="${_sw%%=*}" _sv="${_sw#*=}"
+                if [[ -z "${_sk}" || "${_sk}" == "${_sw}" ]]; then
+                    echo -e "${RED}Error:${NC} --sweep requires KEY=v1,v2,... format." >&2; usage
+                fi
+                sweep_keys+=("${_sk}")
+                sweep_values+=("${_sv}") ;;
+            --omph)
+                omph=true ;;
             --all-periods)
                 all_periods=true ;;
             --dry-run)
@@ -201,6 +291,11 @@ function main() {
 
     ensure_log
 
+    # Build sweep Cartesian product (empty string = "no sweep" = one iteration)
+    local -a sweep_combos=()
+    build_combos sweep_combos
+    local total_experiments=$(( ${#period_list[@]} * ${#sweep_combos[@]} ))
+
     echo "============================================================"
     echo " WW3 Calibration Run Dispatcher  (v${VERSION})"
     echo "============================================================"
@@ -208,109 +303,153 @@ function main() {
     echo "  Config name : ${config_name}"
     echo "  Exp prefix  : ${exp_prefix}"
     echo "  Periods     : ${#period_list[@]}  (${period_list[*]})"
+    [[ -n "${ww3_dir}" ]]               && echo "  WW3 binary  : ${ww3_dir}"
+    [[ ${#extra_x_args[@]} -gt 0 ]]    && echo "  -X overrides: ${extra_x_args[*]}"
+    [[ ${#sweep_combos[@]} -gt 1 ]]    && echo "  Sweep combos: ${#sweep_combos[@]}  (${sweep_combos[*]})"
+    echo "  OMPH patch  : ${omph}"
     echo "  Dry-run     : ${dry_run}"
-    [[ ${#fwd_args[@]} -gt 0 ]] && echo "  Fwd to run_exp: ${fwd_args[*]}"
+    [[ ${#fwd_args[@]} -gt 0 ]]        && echo "  Fwd to run_exp: ${fwd_args[*]}"
+    echo "  Total exps  : ${total_experiments}"
     echo "============================================================"
     echo ""
 
     local n_success=0
     local n_failed=0
 
-    for period in "${period_list[@]}"; do
-        local pf="${PERIODS_DIR}/${period}.period"
-        local exp_name="${exp_prefix}__${period}"
-
-        # Extract period dates for logging (without sourcing into current shell)
-        local start_date end_date
-        start_date=$(grep '^START_DATE=' "${pf}" | cut -d'"' -f2 | awk '{print $1}')
-        end_date=$(grep   '^END_DATE='   "${pf}" | cut -d'"' -f2 | awk '{print $1}')
-        local period_duration_days
-        period_duration_days=$(grep '^PERIOD_DURATION_DAYS=' "${pf}" | cut -d'"' -f2)
-
-        echo "------------------------------------------------------------"
-        echo "  Period    : ${period}"
-        echo "  Exp name  : ${exp_name}"
-        echo "  Dates     : ${start_date} → ${end_date}"
-        [[ -n "${period_duration_days}" ]] && echo "  Duration  : ${period_duration_days} days"
-        echo "------------------------------------------------------------"
-
-        # ----------------------------------------------------------------
-        # Step 1 — setup.sh
-        # ----------------------------------------------------------------
-        echo "[1/2] Setting up experiment: ${exp_name}"
-        local setup_cmd=(
-            "${BENCH_DIR}/scripts/setup.sh"
-            -e "${exp_name}"
-            -c "${config_dir}"
-            -P "${period}"
-        )
-        [[ "${dry_run}" == true ]] && setup_cmd+=("--dry-run")
-
-        if ! "${setup_cmd[@]}"; then
-            echo -e "${RED}ERROR:${NC} setup.sh failed for period '${period}' — skipping." >&2
-            append_log "${config_name}" "${period}" "${exp_name}" \
-                "${start_date}" "${end_date}" "?" "?" "FAILED_SETUP" "SETUP_FAILED"
-            (( n_failed++ )) || true
-            echo ""
-            continue
-        fi
-
-        # Build -d flag from stored duration if not already in fwd_args
-        local extra_d_flag=()
-        if [[ -n "${period_duration_days}" ]]; then
-            local already_has_d=false
-            for a in "${fwd_args[@]}"; do
-                [[ "$a" == "-d" ]] && { already_has_d=true; break; }
+    local sweep_combo
+    for sweep_combo in "${sweep_combos[@]}"; do
+        # Parse this sweep combo into per-experiment -X args and a name suffix.
+        # sweep_combo format: "KEY1=val1 KEY2=val2 ..."
+        local combo_x_args=()
+        local combo_suffix=""
+        if [[ -n "${sweep_combo}" ]]; then
+            local kv
+            for kv in ${sweep_combo}; do
+                local sk="${kv%%=*}"
+                local sv="${kv#*=}"
+                combo_x_args+=(-X "${sk}=${sv}")
+                local sv_tag="${sv//./}"   # strip dots: 1.43 → 143, 15.0 → 150
+                combo_suffix+="__${sk}_${sv_tag}"
             done
-            if [[ "${already_has_d}" == false ]]; then
-                extra_d_flag=(-d "${period_duration_days}")
+        fi
+
+        local period
+        for period in "${period_list[@]}"; do
+            local pf="${PERIODS_DIR}/${period}.period"
+            local exp_name="${exp_prefix}${combo_suffix}__${period}"
+
+            # Extract period dates for logging (without sourcing into current shell)
+            local start_date end_date period_duration_days
+            start_date=$(grep '^START_DATE=' "${pf}" | cut -d'"' -f2 | awk '{print $1}')
+            end_date=$(grep   '^END_DATE='   "${pf}" | cut -d'"' -f2 | awk '{print $1}')
+            period_duration_days=$(grep '^PERIOD_DURATION_DAYS=' "${pf}" | cut -d'"' -f2)
+
+            echo "------------------------------------------------------------"
+            [[ -n "${combo_suffix}" ]] && echo "  Sweep     : ${sweep_combo}"
+            echo "  Period    : ${period}"
+            echo "  Exp name  : ${exp_name}"
+            echo "  Dates     : ${start_date} → ${end_date}"
+            [[ -n "${period_duration_days}" ]] && echo "  Duration  : ${period_duration_days} days"
+            echo "------------------------------------------------------------"
+
+            # ----------------------------------------------------------------
+            # Step 1 — setup.sh
+            # ----------------------------------------------------------------
+            echo "[1/3] Setting up experiment: ${exp_name}"
+            local setup_cmd=(
+                "${BENCH_DIR}/scripts/setup.sh"
+                -e "${exp_name}"
+                -c "${config_dir}"
+                -P "${period}"
+            )
+            [[ -n "${ww3_dir}" ]]            && setup_cmd+=(-w "${ww3_dir}")
+            [[ ${#extra_x_args[@]} -gt 0 ]]  && setup_cmd+=("${extra_x_args[@]}")
+            [[ ${#combo_x_args[@]} -gt 0 ]]  && setup_cmd+=("${combo_x_args[@]}")
+            [[ "${dry_run}" == true ]]        && setup_cmd+=("--dry-run")
+
+            if ! "${setup_cmd[@]}"; then
+                echo -e "${RED}ERROR:${NC} setup.sh failed for '${exp_name}' — skipping." >&2
+                append_log "${config_name}" "${period}" "${exp_name}" \
+                    "${start_date}" "${end_date}" "?" "?" "FAILED_SETUP" "SETUP_FAILED"
+                (( n_failed++ )) || true
+                echo ""
+                continue
             fi
-        fi
 
-        # ----------------------------------------------------------------
-        # Step 2 — run_exp.sh
-        # ----------------------------------------------------------------
-        echo ""
-        echo "[2/2] Submitting jobs: ${exp_name}"
-        local run_cmd=(
-            "${BENCH_DIR}/scripts/run_exp.sh"
-            -e "${exp_name}"
-            "${extra_d_flag[@]}"
-            "${fwd_args[@]}"
-        )
+            # ----------------------------------------------------------------
+            # Step 2 — OMPH env.sh patch (if --omph)
+            # ----------------------------------------------------------------
+            if [[ "${omph}" == true ]]; then
+                local env_file="${BENCH_DIR}/experiments/${exp_name}/metadata/setup/env.sh"
+                if [[ "${dry_run}" == true ]]; then
+                    echo "[DRY-RUN] Would patch ${env_file} with WW3_OMP_THREADS=2"
+                elif [[ -f "${env_file}" ]]; then
+                    chmod u+w "${env_file}"
+                    echo "export WW3_OMP_THREADS=2"      >> "${env_file}"
+                    echo "export I_MPI_ASYNC_PROGRESS=0" >> "${env_file}"
+                    chmod a-w "${env_file}"
+                    echo "[2/3] OMPH env patch applied: ${env_file}"
+                else
+                    echo -e "${YELLOW}WARNING:${NC} env.sh not found for OMPH patch: ${env_file}" >&2
+                fi
+            fi
 
-        local run_output
-        if ! run_output=$("${run_cmd[@]}" 2>&1); then
-            echo -e "${RED}ERROR:${NC} run_exp.sh failed for period '${period}'." >&2
-            echo "${run_output}" >&2
-            append_log "${config_name}" "${period}" "${exp_name}" \
-                "${start_date}" "${end_date}" "?" "?" "FAILED_SUBMIT" "SUBMIT_FAILED"
-            (( n_failed++ )) || true
+            # Build -d flag from stored duration if not already in fwd_args
+            local extra_d_flag=()
+            if [[ -n "${period_duration_days}" ]]; then
+                local already_has_d=false
+                local a
+                for a in "${fwd_args[@]}"; do
+                    [[ "$a" == "-d" ]] && { already_has_d=true; break; }
+                done
+                [[ "${already_has_d}" == false ]] && extra_d_flag=(-d "${period_duration_days}")
+            fi
+
+            # ----------------------------------------------------------------
+            # Step 3 — run_exp.sh
+            # ----------------------------------------------------------------
             echo ""
-            continue
-        fi
-        echo "${run_output}"
+            echo "[3/3] Submitting jobs: ${exp_name}"
+            local run_cmd=(
+                "${BENCH_DIR}/scripts/run_exp.sh"
+                -e "${exp_name}"
+                "${extra_d_flag[@]}"
+                "${fwd_args[@]}"
+            )
 
-        # Parse shel job ID and task count from run_exp.sh output
-        local shel_job_id ntasks_logged
-        shel_job_id=$(echo "${run_output}" | grep -E 'Shel job\s*:' | grep -oE '[0-9]+' | tail -1)
-        shel_job_id="${shel_job_id:-unknown}"
-        ntasks_logged=$(echo "${run_output}" | grep -E 'Total tasks\s*:' | grep -oE '[0-9]+' | head -1)
-        ntasks_logged="${ntasks_logged:-?}"
+            local run_output
+            if ! run_output=$("${run_cmd[@]}" 2>&1); then
+                echo -e "${RED}ERROR:${NC} run_exp.sh failed for '${exp_name}'." >&2
+                echo "${run_output}" >&2
+                append_log "${config_name}" "${period}" "${exp_name}" \
+                    "${start_date}" "${end_date}" "?" "?" "FAILED_SUBMIT" "SUBMIT_FAILED"
+                (( n_failed++ )) || true
+                echo ""
+                continue
+            fi
+            echo "${run_output}"
 
-        append_log "${config_name}" "${period}" "${exp_name}" \
-            "${start_date}" "${end_date}" "?" "${ntasks_logged}" \
-            "${shel_job_id}" "SUBMITTED"
+            # Parse shel job ID and task count from run_exp.sh output
+            local shel_job_id ntasks_logged
+            shel_job_id=$(echo "${run_output}" | grep -E 'Shel job\s*:' | grep -oE '[0-9]+' | tail -1)
+            shel_job_id="${shel_job_id:-unknown}"
+            ntasks_logged=$(echo "${run_output}" | grep -E 'Total tasks\s*:' | grep -oE '[0-9]+' | head -1)
+            ntasks_logged="${ntasks_logged:-?}"
 
-        echo -e "${GREEN}Logged:${NC} ${exp_name} (shel job: ${shel_job_id})"
-        (( n_success++ )) || true
-        echo ""
-    done
+            append_log "${config_name}" "${period}" "${exp_name}" \
+                "${start_date}" "${end_date}" "?" "${ntasks_logged}" \
+                "${shel_job_id}" "SUBMITTED"
+
+            echo -e "${GREEN}Logged:${NC} ${exp_name} (shel job: ${shel_job_id})"
+            (( n_success++ )) || true
+            echo ""
+        done  # period loop
+    done  # sweep_combo loop
 
     echo "============================================================"
     echo " Calibration dispatch complete"
-    echo "  Submitted : ${n_success}/${#period_list[@]}"
-    echo "  Failed    : ${n_failed}/${#period_list[@]}"
+    echo "  Submitted : ${n_success}/${total_experiments}"
+    echo "  Failed    : ${n_failed}/${total_experiments}"
     echo "  Log       : ${CAL_LOG}"
     echo "============================================================"
     echo ""
