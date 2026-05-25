@@ -255,138 +255,89 @@ All experiments: `MISC_WCOR1=99`, `MISC_WCOR2=0.0`. Binary and period are free d
 
 ```bash
 cd /nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/calibration
+
+BASE_MODELS="/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/compilation_Benchmark/models"
+REF_WW3="/home/sm_lenal/programs/compiling/from_waveXtrems/WW3"
+P3AVX2_WW3="${BASE_MODELS}/p3_fp2_ipo_unroll_avx2_nd/WW3"
+OMPH_WW3="${BASE_MODELS}/p4_omph/WW3"
 ```
 
 ---
 
 ### Worked example — BM 1.43, OMPH binary, storm_eunice_2022
 
-Full three-step sequence including the mandatory OMPH env patch.
-For `p3avx2` or `ref`: skip step 2 (no patch needed) and adjust `-n`/`-t` per the binary table.
+Single experiment; `run_calibration.sh` handles setup, OMPH patch, and submission in one call.
 
 ```bash
-BASE_MODELS="/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/compilation_Benchmark/models"
-OMPH_WW3="${BASE_MODELS}/p4_omph/WW3"
-EXP="with_sic__bm143_w1_99_w2_00__omph__storm_eunice_2022"
-
-# 1. Setup — substitutes dates, params, copies namelists
-./scripts/setup.sh \
-  -e "${EXP}" \
+./scripts/run_calibration.sh \
   -c configs/with_sic \
   -P storm_eunice_2022 \
-  -w "${OMPH_WW3}" \
-  -X BETAMAX=1.43 \
-  -X MISC_WCOR1=99 \
-  -X MISC_WCOR2=0.0 \
-  -t "calibration,sic,betamax,wcor,omph"
+  -w "${OMPH_WW3}" --omph \
+  -X BETAMAX=1.43 -X MISC_WCOR1=99 -X MISC_WCOR2=0.0 \
+  -e with_sic__w1_99_w2_00__omph \
+  -N 16 -n 60 --cpus-per-task 2 -t 00:20:00 --post
+```
 
-# 2. Inject OpenMP settings — REQUIRED for OMPH binary
-ENV="experiments/${EXP}/metadata/setup/env.sh"
-chmod u+w "${ENV}"
-echo "export WW3_OMP_THREADS=2"        >> "${ENV}"
-echo "export I_MPI_ASYNC_PROGRESS=0"   >> "${ENV}"
-chmod a-w "${ENV}"
-
-# 3. Submit to Slurm
-./scripts/run_exp.sh \
-  -e "${EXP}" \
-  -N 16 -n 60 --cpus-per-task 2 -t 00:20:00 -d 3d --post
+Experiment directory produced:
+```
+experiments/with_sic__w1_99_w2_00__omph__BETAMAX_143__storm_eunice_2022/
 ```
 
 ---
 
-### Phase 1 — master loop (all binaries × all periods × all BM values)
+### Phase 1 — all BM values × all periods, per binary
+
+Run once per binary. `--sweep` generates the Cartesian product (6 BM × 11 periods = 66 exp/binary).
+Wall time auto-scales from the `.period` file; no manual `-t` adjustment needed per storm.
 
 ```bash
-# -----------------------------------------------------------------------
-# Binary paths
-# -----------------------------------------------------------------------
-BASE_MODELS="/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/compilation_Benchmark/models"
-REF_WW3="/home/sm_lenal/programs/compiling/from_waveXtrems/WW3"
-P3AVX2_WW3="${BASE_MODELS}/p3_fp2_ipo_unroll_avx2_nd/WW3"
-OMPH_WW3="${BASE_MODELS}/p4_omph/WW3"
+# ---- OMPH binary (fastest; run first) ----
+./scripts/run_calibration.sh \
+  -c configs/with_sic --all-periods \
+  -w "${OMPH_WW3}" --omph \
+  --sweep BETAMAX=1.33,1.43,1.50,1.55,1.65,1.75 \
+  -X MISC_WCOR1=99 -X MISC_WCOR2=0.0 \
+  -e with_sic__w1_99_w2_00__omph \
+  -N 16 -n 60 --cpus-per-task 2 --post
 
-PERIODS=(storm_eunice_2022 storm_berit_2011 storm_friedhelm_2011 storm_dagmar_2011
-         storm_hilde_2013 storm_xaver_2013 storm_ciara_2020 storm_dennis_2020
-         storm_malik_2022 storm_ingunn_2024 storm_eowyn_2025)
+# ---- p3avx2 binary ----
+./scripts/run_calibration.sh \
+  -c configs/with_sic --all-periods \
+  -w "${P3AVX2_WW3}" \
+  --sweep BETAMAX=1.33,1.43,1.50,1.55,1.65,1.75 \
+  -X MISC_WCOR1=99 -X MISC_WCOR2=0.0 \
+  -e with_sic__w1_99_w2_00__p3avx2 \
+  -N 16 -n 69 --post
 
-# -----------------------------------------------------------------------
-# Loop — 6 BM × 11 periods × 3 binaries = 198 experiments
-# -----------------------------------------------------------------------
-for PERIOD in "${PERIODS[@]}"; do
-  source "periods/${PERIOD}.period"           # sets PERIOD_DURATION_DAYS
-
-  for BM in 1.33 1.43 1.50 1.55 1.65 1.75; do
-    BM_TAG="${BM//./}"                         # 1.43 → 143
-
-    for BIN in ref p3avx2 omph; do
-      case "${BIN}" in
-        ref)
-          BIN_WW3="${REF_WW3}"
-          RUN_ARGS=(-N 16 -n 60)
-          MINS_PER_DAY=60                      # ~45 min for 3-day storm
-          ;;
-        p3avx2)
-          BIN_WW3="${P3AVX2_WW3}"
-          RUN_ARGS=(-N 16 -n 69)
-          MINS_PER_DAY=60                      # ~30 min for 3-day storm
-          ;;
-        omph)
-          BIN_WW3="${OMPH_WW3}"
-          RUN_ARGS=(-N 16 -n 60 --cpus-per-task 2)
-          MINS_PER_DAY=40                       # ~20 min for 3-day storm
-          ;;
-      esac
-
-      # Scale wall time to storm duration (+ 10 min buffer)
-      WALL_MIN=$(( PERIOD_DURATION_DAYS * MINS_PER_DAY + 10 ))
-      WALL=$(printf "%02d:%02d:00" $(( WALL_MIN / 60 )) $(( WALL_MIN % 60 )))
-
-      EXP="with_sic__bm${BM_TAG}_w1_99_w2_00__${BIN}__${PERIOD}"
-
-      ./scripts/setup.sh \
-        -e "${EXP}" \
-        -c configs/with_sic \
-        -P "${PERIOD}" \
-        -w "${BIN_WW3}" \
-        -X BETAMAX="${BM}" \
-        -X MISC_WCOR1=99 \
-        -X MISC_WCOR2=0.0 \
-        -t "calibration,sic,betamax,wcor,${BIN}"\
-        --force
-
-      # OMPH binary requires OpenMP thread count injected into env.sh
-      if [[ "${BIN}" == "omph" ]]; then
-        ENV="experiments/${EXP}/metadata/setup/env.sh"
-        chmod u+w "${ENV}"
-        echo "export WW3_OMP_THREADS=2"        >> "${ENV}"
-        echo "export I_MPI_ASYNC_PROGRESS=0"   >> "${ENV}"
-        chmod a-w "${ENV}"
-      fi
-
-      ./scripts/run_exp.sh \
-        -e "${EXP}" \
-        "${RUN_ARGS[@]}" -t "${WALL}" -d "${PERIOD_DURATION_DAYS}d" --post
-    done
-  done
-done
+# ---- ref binary ----
+./scripts/run_calibration.sh \
+  -c configs/with_sic --all-periods \
+  -w "${REF_WW3}" \
+  --sweep BETAMAX=1.33,1.43,1.50,1.55,1.65,1.75 \
+  -X MISC_WCOR1=99 -X MISC_WCOR2=0.0 \
+  -e with_sic__w1_99_w2_00__ref \
+  -N 16 -n 60 --post
 ```
 
-> **198 jobs total.** Stagger submissions to stay within cluster queue limits.
-> Recommended start: `storm_eunice_2022` alone first (18 jobs: 6 BM × 3 binaries) — verify
-> cross-binary Hs agreement before scaling to all periods.
+Experiment naming pattern: `with_sic__w1_99_w2_00__<bin>__BETAMAX_<tag>__<period>`
+e.g. `with_sic__w1_99_w2_00__omph__BETAMAX_143__storm_eunice_2022`
+
+> **198 jobs total** (66 per binary × 3 binaries). Stagger binary submissions to stay within
+> cluster queue limits.
+> Recommended start: run the OMPH block with `-P storm_eunice_2022` only (6 jobs) to validate
+> cross-binary Hs agreement, then release all 3 full blocks.
 
 ---
 
 ## Phase 1 — post-run evaluation
 
 ```bash
-# Status — grouped by binary
+# Status — grouped by binary (new naming: prefix__bin__BETAMAX_TAG__period)
 for BIN in ref p3avx2 omph; do
   echo "=== Binary: ${BIN} ==="
-  for d in experiments/with_sic__bm*_w1_99_w2_00__${BIN}__*; do
+  for d in experiments/with_sic__w1_99_w2_00__${BIN}__BETAMAX_*; do
     exp=$(basename "${d}")
-    printf "  %-70s  " "${exp}"
+    printf "  %-80s  " "${exp}"
     ./scripts/check_exp.sh "${exp}" 2>/dev/null | grep -E "WW3 status|Elapsed" || echo "(no info)"
   done
 done
@@ -401,66 +352,39 @@ done
 
 ## Phase 2 commands — WCOR sweep
 
-OMPH binary used for all Phase 2 runs.
+OMPH binary used for all Phase 2 runs. Set `BEST_BM` from Phase 1, then dispatch the full
+WCOR grid in a single call using two `--sweep` flags (Cartesian product: 4 W1 × 3 W2 = 12
+combos, minus the W1=99/W2=0.0 baseline already run in Phase 1 = **11 new combos × 11 periods
+= 121 experiments**).
 
 ```bash
-# -----------------------------------------------------------------------
-# Set this from Phase 1 results
-# -----------------------------------------------------------------------
+cd /nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/calibration
+
 BEST_BM="1.55"           # ← replace with actual best from Phase 1
-BM_TAG="${BEST_BM//./}"
 OMPH_WW3="/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/compilation_Benchmark/models/p4_omph/WW3"
 
-PERIODS=(storm_eunice_2022 storm_berit_2011 storm_friedhelm_2011 storm_dagmar_2011
-         storm_hilde_2013 storm_xaver_2013 storm_ciara_2020 storm_dennis_2020
-         storm_malik_2022 storm_ingunn_2024 storm_eowyn_2025)
-
 # -----------------------------------------------------------------------
-# Loop — 12 WCOR combos × 11 periods = 132 experiments
+# Full WCOR grid — 4 W1 × 3 W2 = 12 combos × 11 periods
+# (W1=99/W2=0.0 was already run in Phase 1; it will be re-submitted here
+#  unless you exclude it — remove it from --sweep W1 and run separately
+#  or just let it re-run as a consistency check)
 # -----------------------------------------------------------------------
-for PERIOD in "${PERIODS[@]}"; do
-  source "periods/${PERIOD}.period"
-
-  # Scale wall time for OMPH: ~7 min/day + 10 min buffer
-  WALL_MIN=$(( PERIOD_DURATION_DAYS * 7 + 10 ))
-  WALL=$(printf "%02d:%02d:00" $(( WALL_MIN / 60 )) $(( WALL_MIN % 60 )))
-
-  for W1 in 99 15.0 20.0 25.0; do
-    W1_TAG="${W1%%.*}"                         # 15.0 → 15, 99 → 99
-    for W2 in 0.0 0.1 0.2; do
-      # Skip Phase 1 repeat (already run)
-      [[ "${W1}" == "99" && "${W2}" == "0.0" ]] && continue
-
-      W2_TAG=$(printf "%s" "${W2}" | sed 's/0\.\([0-9]\)/0\1/; s/0\.0/00/')
-      EXP="with_sic__bm${BM_TAG}_w1_${W1_TAG}_w2_${W2_TAG}__omph__${PERIOD}"
-
-      ./scripts/setup.sh \
-        -e "${EXP}" \
-        -c configs/with_sic \
-        -P "${PERIOD}" \
-        -w "${OMPH_WW3}" \
-        -X BETAMAX="${BEST_BM}" \
-        -X MISC_WCOR1="${W1}" \
-        -X MISC_WCOR2="${W2}" \
-        -t "calibration,sic,betamax,wcor,omph"
-
-      ENV="experiments/${EXP}/metadata/setup/env.sh"
-      chmod u+w "${ENV}"
-      echo "export WW3_OMP_THREADS=2"        >> "${ENV}"
-      echo "export I_MPI_ASYNC_PROGRESS=0"   >> "${ENV}"
-      chmod a-w "${ENV}"
-
-      ./scripts/run_exp.sh \
-        -e "${EXP}" \
-        -N 16 -n 60 --cpus-per-task 2 -t "${WALL}" \
-        -d "${PERIOD_DURATION_DAYS}d" --post
-    done
-  done
-done
+./scripts/run_calibration.sh \
+  -c configs/with_sic --all-periods \
+  -w "${OMPH_WW3}" --omph \
+  --sweep MISC_WCOR1=99,15.0,20.0,25.0 \
+  --sweep MISC_WCOR2=0.0,0.1,0.2 \
+  -X BETAMAX="${BEST_BM}" \
+  -e "with_sic__bm${BEST_BM//./}__omph" \
+  -N 16 -n 60 --cpus-per-task 2 --post
 ```
 
-> **132 jobs** (11 WCOR combos × 11 periods — the W1=99/W2=0.0 row is skipped as it was
-> already produced in Phase 1). Remove the `&& continue` line to re-run it as a check.
+Experiment naming pattern: `with_sic__bm<BM>__omph__MISC_WCOR1_<w1tag>__MISC_WCOR2_<w2tag>__<period>`
+e.g. `with_sic__bm155__omph__MISC_WCOR1_150__MISC_WCOR2_01__storm_xaver_2013`
+
+> **132 jobs** (12 WCOR combos × 11 periods). The W1=99/W2=0.0 row matches Phase 1 physics
+> and can serve as a cross-check. To skip it, split into two calls: one for W1=99 with
+> `--sweep MISC_WCOR2=0.1,0.2`, and one for `--sweep MISC_WCOR1=15.0,20.0,25.0`.
 
 ---
 
@@ -470,18 +394,18 @@ done
 # Phase 1 — all binary / period combinations
 for BIN in ref p3avx2 omph; do
   echo "=== ${BIN} ==="
-  for d in experiments/with_sic__bm*_w1_99_w2_00__${BIN}__*; do
+  for d in experiments/with_sic__w1_99_w2_00__${BIN}__BETAMAX_*; do
     exp=$(basename "${d}")
-    printf "  %-70s  " "${exp}"
+    printf "  %-80s  " "${exp}"
     ./scripts/check_exp.sh "${exp}" 2>/dev/null | grep -E "WW3 status|Elapsed" || echo "(no info)"
   done
 done
 
 # Phase 2 — WCOR sweep (omph only)
-for d in experiments/with_sic__bm*__omph__*; do
-  [[ "${d}" == *"_w1_99_w2_00"* ]] && continue   # skip Phase 1 repeats
+BEST_BM_TAG="155"    # ← set to match Phase 1 winner
+for d in experiments/with_sic__bm${BEST_BM_TAG}__omph__MISC_WCOR*; do
   exp=$(basename "${d}")
-  printf "%-72s  " "${exp}"
+  printf "%-90s  " "${exp}"
   ./scripts/check_exp.sh "${exp}" 2>/dev/null | grep -E "WW3 status|Elapsed" || echo "(no info)"
 done
 
@@ -502,8 +426,16 @@ column -t -s',' periods/calibration_log.csv | grep with_sic
 - All parameter overrides (`-X`) substitute `{{KEY}}` tokens in namelists at setup time;
   no `.nml` file is ever edited manually.
 - **OMPH env.sh patch is mandatory**: without `WW3_OMP_THREADS=2`, OpenMP regions run
-  single-threaded per MPI rank, negating the throughput gain. Both the `-w` binary path flag
-  and the env.sh append are required — neither alone is sufficient.
+  single-threaded per MPI rank, negating the throughput gain. Pass `--omph` to
+  `run_calibration.sh` and it is applied automatically after every `setup.sh` call.
+  When running `setup.sh` + `run_exp.sh` manually, apply the patch by hand:
+  ```bash
+  ENV="experiments/${EXP}/metadata/setup/env.sh"
+  chmod u+w "${ENV}"
+  echo "export WW3_OMP_THREADS=2"      >> "${ENV}"
+  echo "export I_MPI_ASYNC_PROGRESS=0" >> "${ENV}"
+  chmod a-w "${ENV}"
+  ```
 - **Binary cross-check**: physics must be identical across `ref`, `p3avx2`, and `omph`.
   Fast-math (`-fp-model fast=2`) and AVX widening introduce rounding differences typically
   < 10⁻⁶ relative in Hs. Flag anything > 10⁻⁴ as a compilation regression to investigate.
