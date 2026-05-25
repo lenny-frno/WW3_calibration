@@ -2,14 +2,15 @@
 # =============================================================================
 # scan_experiments.sh — Batch diagnostic dashboard for all WW3 experiments
 # =============================================================================
-# Version: 1.0
+# Version: 1.1
 #
 # Usage: ./scan_experiments.sh [OPTIONS]
 #
 # Options:
 #   -s, --status <S[,S...]>  Show only experiments matching comma-separated statuses.
-#                            Valid values: SUCCESS FAILED CANCELLED TIMEOUT
-#                                         NOT_RUN NOT_SETUP PENDING RUNNING ALL
+#                            Valid values: SUCCESS INCOMPLETE FAILED CANCELLED
+#                                         TIMEOUT DEAD NOT_RUN NOT_SETUP
+#                                         PENDING RUNNING ALL
 #                            Default: ALL
 #   -g, --group  <G>         Show only experiments under group folder <G>
 #   -t, --tag    <T>         Show only experiments whose exp_config.sh EXP_TAGS contains <T>
@@ -24,10 +25,16 @@
 #   Grouped: experiments/<group>/<exp_name>/   → group shown as <group>
 #
 # Status detection order (most-to-least authoritative):
-#   1. metadata/runtime/timing_raw.txt → WW3_STATUS       (terminal, most reliable)
-#   2. metadata/runtime/last_jobids.txt exists, no timing  → PENDING or RUNNING
-#   3. exp_config.sh exists, no last_jobids.txt            → NOT_RUN
-#   4. No exp_config.sh                                    → NOT_SETUP
+#   1. metadata/runtime/timing_raw.txt → WW3_STATUS + wave output check  (most reliable)
+#   2. metadata/runtime/last_jobids.txt exists, no timing → PENDING/RUNNING/DEAD/FAILED
+#   3. exp_config.sh or work/ exists, no last_jobids.txt  → NOT_RUN
+#   4. No exp_config.sh AND no work/                      → NOT_SETUP
+#
+# Extended statuses:
+#   SUCCESS    = timed + wave output (Wave.nc / ww3.*.nc) found
+#   INCOMPLETE = timed + "End of program" in log but NO wave output
+#   FAILED     = timed + no "End of program" or FATAL ERROR
+#   DEAD       = job submitted but no sacct record (silently disappeared)
 # =============================================================================
 
 set -euo pipefail
@@ -98,12 +105,42 @@ fi
 
 status_color() {
     case "$1" in
-        SUCCESS)              echo "${C_GREEN}" ;;
-        FAILED|TIMEOUT)       echo "${C_RED}" ;;
-        CANCELLED)            echo "${C_YELLOW}" ;;
-        RUNNING|PENDING)      echo "${C_CYAN}" ;;
-        NOT_RUN|NOT_SETUP)    echo "${C_GREY}" ;;
-        *)                    echo "${C_RESET}" ;;
+        SUCCESS)                      echo "${C_GREEN}" ;;
+        INCOMPLETE)                   echo "${C_YELLOW}" ;;
+        FAILED|TIMEOUT|DEAD|UNKNOWN)  echo "${C_RED}" ;;
+        CANCELLED)                    echo "${C_YELLOW}" ;;
+        RUNNING|PENDING)              echo "${C_CYAN}" ;;
+        NOT_RUN|NOT_SETUP)            echo "${C_GREY}" ;;
+        *)                            echo "${C_RESET}" ;;
+    esac
+}
+
+# Check if a completed experiment produced usable wave output.
+# Returns 0 (true) if Wave.nc or any ww3.*.nc exists under work/.
+_has_wave_output() {
+    local work_dir="$1/work"
+    [[ -f "${work_dir}/Wave.nc" ]]           && return 0
+    ls "${work_dir}"/ww3.*.nc &>/dev/null    && return 0
+    ls "${work_dir}"/ww3*.nc  &>/dev/null    && return 0
+    return 1
+}
+
+# Check sacct for the actual Slurm state of a job (fast, non-blocking).
+# Echoes one of: COMPLETED FAILED CANCELLED TIMEOUT RUNNING PENDING UNKNOWN
+_sacct_state() {
+    local jobid="$1"
+    [[ ! "${jobid}" =~ ^[0-9]+$ ]] && echo "UNKNOWN" && return
+    local state
+    state=$(sacct -j "${jobid}" --noheader --format=State --parsable2 2>/dev/null \
+            | head -1 | tr -d ' ')
+    case "${state}" in
+        COMPLETED)            echo "COMPLETED" ;;
+        FAILED)               echo "FAILED" ;;
+        CANCELLED*|CANCELED*) echo "CANCELLED" ;;
+        TIMEOUT)              echo "TIMEOUT" ;;
+        RUNNING)              echo "RUNNING" ;;
+        PENDING)              echo "PENDING" ;;
+        *)                    echo "UNKNOWN" ;;
     esac
 }
 
@@ -125,52 +162,92 @@ detect_status() {
     _DATE="—"
     _NOTE=""
 
-    # Level 4: no config → NOT_SETUP
-    [[ ! -f "${config}" ]] && return
+    # Level 4: neither exp_config.sh nor work/ → truly not set up
+    if [[ ! -f "${config}" && ! -d "${exp_dir}/work" ]]; then
+        return
+    fi
+    [[ ! -f "${config}" ]] && _NOTE="legacy (no exp_config.sh)"
 
-    # Level 3: config but no jobids → NOT_RUN
+    # Level 3: setup but not yet submitted
+    # (For legacy experiments that have timing_raw.txt but no jobids, fall through)
     _STATUS="NOT_RUN"
-    [[ ! -f "${jobids}" ]] && return
+    if [[ ! -f "${jobids}" && ! -f "${timing}" ]]; then
+        return
+    fi
 
-    # Read job ID
-    local shel_id
-    shel_id=$(grep '^shel_job_id=' "${jobids}" 2>/dev/null | cut -d= -f2 | tr -d '"' || true)
+    # Read job ID (if available)
+    local shel_id=""
+    if [[ -f "${jobids}" ]]; then
+        shel_id=$(grep '^shel_job_id=' "${jobids}" 2>/dev/null | cut -d= -f2 | tr -d '"' || true)
+    fi
     _JOBID="${shel_id:-—}"
 
-    # Level 2: jobids exists, no timing → PENDING or RUNNING
+    # Level 2: job submitted (or legacy with work/ but no timing) → check live state
     if [[ ! -f "${timing}" ]]; then
         if [[ -f "${log}" ]]; then
             _STATUS="RUNNING"
-            _NOTE="log.ww3 exists but timing not written yet"
+            _NOTE="${_NOTE:+${_NOTE}; }log.ww3 exists but timing not written yet"
+        elif [[ -n "${shel_id}" ]] && command -v sacct &>/dev/null; then
+            local sstate
+            sstate=$(_sacct_state "${shel_id}")
+            case "${sstate}" in
+                COMPLETED) _STATUS="INCOMPLETE"; _NOTE="${_NOTE:+${_NOTE}; }sacct=COMPLETED but no timing_raw" ;;
+                FAILED)    _STATUS="FAILED"    ; _NOTE="${_NOTE:+${_NOTE}; }sacct=FAILED" ;;
+                CANCELLED) _STATUS="CANCELLED" ; _NOTE="${_NOTE:+${_NOTE}; }sacct=CANCELLED" ;;
+                TIMEOUT)   _STATUS="TIMEOUT"   ; _NOTE="${_NOTE:+${_NOTE}; }sacct=TIMEOUT" ;;
+                RUNNING)   _STATUS="RUNNING" ;;
+                PENDING)   _STATUS="PENDING" ;;
+                UNKNOWN)   _STATUS="DEAD"       ; _NOTE="${_NOTE:+${_NOTE}; }no sacct record — may have expired" ;;
+            esac
         else
             _STATUS="PENDING"
-            _NOTE="Job submitted; waiting for log"
+            _NOTE="${_NOTE:+${_NOTE}; }job submitted; waiting for log"
         fi
         return
     fi
 
-    # Level 1: timing_raw exists — read authoritatively
+    # Level 1: timing_raw exists — most authoritative
     local raw_status raw_elapsed raw_throughput raw_date
     raw_status=$(    grep '^WW3_STATUS='                "${timing}" | cut -d= -f2- | tr -d '"' || true)
     raw_elapsed=$(   grep '^ELAPSED_SECONDS='           "${timing}" | cut -d= -f2- | tr -d '"' || true)
     raw_throughput=$(grep '^THROUGHPUT_DAYS_PER_HOUR='  "${timing}" | cut -d= -f2- | tr -d '"' || true)
     raw_date=$(      grep '^RUN_END_ISO='               "${timing}" | cut -d= -f2- | tr -d '"' || true)
 
-    _STATUS="${raw_status:-UNKNOWN}"
     _ELAPSED="${raw_elapsed:+${raw_elapsed}s}"
     _ELAPSED="${_ELAPSED:-—}"
     _THROUGHPUT="${raw_throughput:-—}"
-    _DATE="${raw_date:0:10}"   # keep only YYYY-MM-DD
+    _DATE="${raw_date:0:10}"
     _DATE="${_DATE:-—}"
 
-    # Extra sanity cross-checks
-    if [[ "${_STATUS}" == "SUCCESS" ]]; then
-        if [[ -f "${log}" ]] && ! grep -q "End of program" "${log}" 2>/dev/null; then
-            _NOTE="WARNING: 'End of program' missing in log.ww3"
+    # Normalise legacy "COMPLETED" (old framework) and empty → tentative SUCCESS
+    local _tentative
+    case "${raw_status}" in
+        SUCCESS|COMPLETED|"") _tentative="SUCCESS"   ;;
+        FAILED)               _tentative="FAILED"    ;;
+        CANCELLED)            _tentative="CANCELLED" ;;
+        TIMEOUT)              _tentative="TIMEOUT"   ;;
+        *)                    _tentative="${raw_status:-UNKNOWN}" ;;
+    esac
+
+    # For success-class: verify wave output was actually produced
+    if [[ "${_tentative}" == "SUCCESS" ]]; then
+        if _has_wave_output "${exp_dir}"; then
+            _STATUS="SUCCESS"
+        elif [[ -f "${log}" ]] && grep -q "End of program" "${log}" 2>/dev/null; then
+            _STATUS="INCOMPLETE"
+            _NOTE="${_NOTE:+${_NOTE}; }ran to end but no wave output (Wave.nc missing)"
+        else
+            _STATUS="FAILED"
+            _NOTE="${_NOTE:+${_NOTE}; }no wave output, no 'End of program' in log"
         fi
+    else
+        _STATUS="${_tentative}"
     fi
+
+    # Flag FATAL ERROR regardless of reported status
     if [[ -f "${test001}" ]] && grep -q "FATAL ERROR" "${test001}" 2>/dev/null; then
         _NOTE="${_NOTE:+${_NOTE}; }FATAL ERROR in test001.ww3"
+        [[ "${_STATUS}" == "SUCCESS" || "${_STATUS}" == "INCOMPLETE" ]] && _STATUS="FAILED"
     fi
 }
 
@@ -226,20 +303,19 @@ collect_experiments() {
             fi
         fi
 
-        if [[ -f "${entry}/exp_config.sh" ]]; then
+        if [[ -f "${entry}/exp_config.sh" || -d "${entry}/work" ]]; then
             # Flat layout: this IS the experiment
-            echo "—::${name}::${entry%/}"
+            echo "—|${name}|${entry%/}"
         else
             # Potential group folder: look for experiments one level deeper
-            local found_any=false
             for subentry in "${entry}"/*/; do
                 [[ ! -d "${subentry}" ]] && continue
                 local subname
                 subname="$(basename "${subentry}")"
-                found_any=true
-                echo "${name}::${subname}::${subentry%/}"
+                [[ ! -f "${subentry}/exp_config.sh" && ! -d "${subentry}/work" ]] && continue
+                echo "${name}|${subname}|${subentry%/}"
             done
-            # If the folder has no experiment subdirs and no exp_config.sh, silently skip
+            # If no matching sub-experiments found, silently skip
         fi
     done
     shopt -u nullglob
@@ -330,7 +406,7 @@ fi
 declare -a VISIBLE_GROUPS VISIBLE_NAMES VISIBLE_DIRS
 
 for entry in "${ENTRIES[@]}"; do
-    IFS='::' read -r grp name dir <<< "${entry}"
+    IFS='|' read -r grp name dir <<< "${entry}"
 
     # Group filter
     if [[ -n "${FILTER_GROUP}" && "${grp}" != "${FILTER_GROUP}" && "${FILTER_GROUP}" != "—" ]]; then
@@ -391,7 +467,7 @@ else
 
     echo ""
     echo -e "${C_BOLD}Summary:${C_RESET}  ${#VISIBLE_DIRS[@]} experiments shown"
-    for s in SUCCESS FAILED TIMEOUT CANCELLED RUNNING PENDING NOT_RUN NOT_SETUP UNKNOWN; do
+    for s in SUCCESS INCOMPLETE FAILED TIMEOUT CANCELLED DEAD RUNNING PENDING NOT_RUN NOT_SETUP UNKNOWN; do
         cnt="${STATUS_COUNTS[${s}]:-0}"
         [[ "${cnt}" -gt 0 ]] && printf "  $(status_color "${s}")%-12s${C_RESET}  %d\n" "${s}" "${cnt}"
     done
