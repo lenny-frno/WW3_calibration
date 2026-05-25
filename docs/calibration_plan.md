@@ -324,17 +324,17 @@ for PERIOD in "${PERIODS[@]}"; do
         ref)
           BIN_WW3="${REF_WW3}"
           RUN_ARGS=(-N 16 -n 60)
-          MINS_PER_DAY=30                      # ~45 min for 3-day storm
+          MINS_PER_DAY=60                      # ~45 min for 3-day storm
           ;;
         p3avx2)
           BIN_WW3="${P3AVX2_WW3}"
           RUN_ARGS=(-N 16 -n 69)
-          MINS_PER_DAY=30                      # ~30 min for 3-day storm
+          MINS_PER_DAY=60                      # ~30 min for 3-day storm
           ;;
         omph)
           BIN_WW3="${OMPH_WW3}"
           RUN_ARGS=(-N 16 -n 60 --cpus-per-task 2)
-          MINS_PER_DAY=30                       # ~20 min for 3-day storm
+          MINS_PER_DAY=40                       # ~20 min for 3-day storm
           ;;
       esac
 
@@ -352,7 +352,7 @@ for PERIOD in "${PERIODS[@]}"; do
         -X BETAMAX="${BM}" \
         -X MISC_WCOR1=99 \
         -X MISC_WCOR2=0.0 \
-        -t "calibration,sic,betamax,wcor,${BIN}"
+        -t "calibration,sic,betamax,wcor,${BIN}"\
         --force
 
       # OMPH binary requires OpenMP thread count injected into env.sh

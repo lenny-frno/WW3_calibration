@@ -13,10 +13,11 @@
 # Subcommands:
 #   list                                               List all periods (table)
 #   add  <name> --start YYYYMMDD --end YYYYMMDD        Register a new period
-#              [--desc "text"] [--tags t1,t2]
+#              [--desc "text"] [--tags t1,t2]          [--spinup N]  (default: 1)
 #   show <name>                                        Print full period details
 #   remove <name>                                      Delete period file
 #   log  [--config <name>] [--period <name>]           Query calibration log
+#   help                                               Show all monitoring commands
 # =============================================================================
 
 SCRIPT_NAME=$(basename "$0")
@@ -63,6 +64,7 @@ ${BOLD}Options for 'add':${NC}
   --end   YYYYMMDD     Simulation end date   (required)
   --desc  "text"       Human-readable description (optional)
   --tags  tag1,tag2    Comma-separated tags (optional)
+  --spinup N           Spin-up days before analysis period (default: 1, max 7)
 
 ${BOLD}Examples:${NC}
   ${SCRIPT_NAME} list
@@ -119,24 +121,26 @@ function cmd_list() {
         return 0
     fi
 
-    printf "${BOLD}%-32s  %-12s  %-12s  %-6s  %s${NC}\n" \
-        "NAME" "START" "END" "DAYS" "DESCRIPTION"
-    printf '%s\n' "$(printf '%0.s-' {1..85})"
+    printf "${BOLD}%-32s  %-12s  %-12s  %-6s  %-8s  %s${NC}\n" \
+        "NAME" "START" "END" "DAYS" "SPINUP" "DESCRIPTION"
+    printf '%s\n' "$(printf '%0.s-' {1..93})"
 
     for f in "${files[@]}"; do
         [[ ! -f "$f" ]] && continue
-        local name start end desc
+        local name start end desc spinup
         name=$(grep '^PERIOD_NAME=' "$f" | cut -d'"' -f2)
         start=$(grep '^START_DATE='  "$f" | cut -d'"' -f2 | awk '{print $1}')
         end=$(grep   '^END_DATE='    "$f" | cut -d'"' -f2 | awk '{print $1}')
         desc=$(grep  '^DESCRIPTION=' "$f" | cut -d'"' -f2)
+        spinup=$(grep '^SPINUP_DAYS=' "$f" | cut -d'"' -f2)
         local days
         days=$(days_between "${start}" "${end}")
-        printf "%-32s  %-12s  %-12s  %-6s  %s\n" \
+        printf "%-32s  %-12s  %-12s  %-6s  %-8s  %s\n" \
             "${name}" \
             "$(format_date "${start}")" \
             "$(format_date "${end}")" \
             "${days}d" \
+            "${spinup:-0}d" \
             "${desc:-—}"
     done
 }
@@ -146,14 +150,15 @@ function cmd_list() {
 # -----------------------------------------------------------------------
 function cmd_add() {
     local name="$1"; shift
-    local start="" end="" desc="" tags=""
+    local start="" end="" desc="" tags="" spinup_days="1"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --start) shift; start="$1" ;;
-            --end)   shift; end="$1"   ;;
-            --desc)  shift; desc="$1"  ;;
-            --tags)  shift; tags="$1"  ;;
+            --start)  shift; start="$1" ;;
+            --end)    shift; end="$1"   ;;
+            --desc)   shift; desc="$1"  ;;
+            --tags)   shift; tags="$1"  ;;
+            --spinup) shift; spinup_days="$1" ;;
             *) echo -e "${RED}Error:${NC} Unknown option: $1" >&2; usage ;;
         esac
         shift
@@ -179,6 +184,9 @@ function cmd_add() {
     fi
     if [[ "${end}" -le "${start}" ]]; then
         echo -e "${RED}Error:${NC} --end must be after --start." >&2; exit 1
+    fi
+    if ! [[ "${spinup_days}" =~ ^[0-9]+$ ]] || [[ "${spinup_days}" -gt 7 ]]; then
+        echo -e "${RED}Error:${NC} --spinup must be an integer between 0 and 7." >&2; exit 1
     fi
 
     ensure_dir
@@ -210,6 +218,7 @@ END_DATE="${end_ww3}"
 YEAR="${year}"
 MONTH="${month}"
 PERIOD_DURATION_DAYS="${dur_days}"
+SPINUP_DAYS="${spinup_days}"
 DESCRIPTION="${desc}"
 TAGS="${tags}"
 ADDED_AT="${now}"
@@ -219,6 +228,7 @@ PERIODEOF
     echo "  Start  : $(format_date "${start}") → WW3 format: ${start_ww3}"
     echo "  End    : $(format_date "${end}") → WW3 format: ${end_ww3}"
     echo "  Days   : ${dur_days}"
+    echo "  Spinup : ${spinup_days} day(s)"
     [[ -n "${desc}" ]] && echo "  Desc   : ${desc}"
     [[ -n "${tags}" ]] && echo "  Tags   : ${tags}"
     echo "  File   : ${period_file}"
@@ -290,6 +300,94 @@ function cmd_remove() {
 }
 
 # -----------------------------------------------------------------------
+# Subcommand: help  — print all useful monitoring commands
+# -----------------------------------------------------------------------
+function cmd_help() {
+    echo -e "${BOLD}=================================================================${NC}"
+    echo -e "${BOLD}  WW3 Calibration Framework — Monitoring & Management Commands${NC}"
+    echo -e "${BOLD}=================================================================${NC}"
+    echo ""
+    echo -e "${BOLD}--- Period Management ---${NC}"
+    echo "  ${SCRIPT_NAME} list"
+    echo "    List all registered calibration periods."
+    echo ""
+    echo "  ${SCRIPT_NAME} add <name> --start YYYYMMDD --end YYYYMMDD \\"
+    echo "       [--desc \"text\"] [--tags tag1,tag2] [--spinup N]"
+    echo "    Register a new storm/period (spinup default: 1 day, max 7)."
+    echo ""
+    echo "  ${SCRIPT_NAME} show <name>"
+    echo "    Show full period details + run count from calibration log."
+    echo ""
+    echo "  ${SCRIPT_NAME} remove <name>"
+    echo "    Delete a period file."
+    echo ""
+    echo -e "${BOLD}--- Calibration Log ---${NC}"
+    echo "  ${SCRIPT_NAME} log"
+    echo "    Show all logged calibration runs."
+    echo ""
+    echo "  ${SCRIPT_NAME} log --config <cfg> [--period <prd>]"
+    echo "    Filter log by config name and/or period."
+    echo ""
+    echo -e "${BOLD}--- Experiment Setup & Submission ---${NC}"
+    echo "  scripts/setup.sh -C <config> -P <period> [-X KEY=VAL ...]"
+    echo "    Set up a WW3 experiment directory."
+    echo ""
+    echo "  scripts/run_exp.sh -C <config> -P <period> [-B <binary>]"
+    echo "    Submit Slurm job chain: prep → shel → perf → post."
+    echo ""
+    echo "  scripts/run_calibration.sh -c <config> -P p1,p2 [-B ref,p3avx2]"
+    echo "    Dispatch config × periods (× binaries) to Slurm in bulk."
+    echo ""
+    echo -e "${BOLD}--- Config Management ---${NC}"
+    echo "  configs/manage_config.sh list"
+    echo "    List all configs with their metadata."
+    echo ""
+    echo "  configs/manage_config.sh new <name> [--from <base>] [--tags ...]"
+    echo "    Create a new config (optionally cloned from an existing one)."
+    echo ""
+    echo "  configs/manage_config.sh diff <cfg1> <cfg2>"
+    echo "    Show differences between two configs."
+    echo ""
+    echo -e "${BOLD}--- Slurm Monitoring ---${NC}"
+    echo "  squeue -u \$USER"
+    echo "    Show queued/running jobs."
+    echo ""
+    echo "  squeue -u \$USER -o '%.18i %.9P %.30j %.8T %.10M %.6D %R'"
+    echo "    Extended job view with state, runtime, reason."
+    echo ""
+    echo "  sacct -u \$USER --starttime=today --format=JobID,JobName%40,State,Elapsed"
+    echo "    Show today's completed/failed jobs with elapsed time."
+    echo ""
+    echo "  scancel <jobid>   OR   scancel -u \$USER"
+    echo "    Cancel specific job or all your jobs."
+    echo ""
+    echo -e "${BOLD}--- Log & Output Inspection ---${NC}"
+    echo "  tail -f <WORK_DIR>/logs/shel.log"
+    echo "    Follow the WW3 shel log in real time."
+    echo ""
+    echo "  ls -lt <WORK_DIR>/logs/"
+    echo "    List log files sorted by modification time."
+    echo ""
+    echo "  cat <WORK_DIR>/metadata/setup/model_info.txt"
+    echo "    Show setup parameters, period, binary, and metadata for a run."
+    echo ""
+    echo "  cat <WORK_DIR>/metadata/setup/nml_provenance.txt"
+    echo "    Show which NML files were used and any substitutions made."
+    echo ""
+    echo -e "${BOLD}--- Calibration Log File ---${NC}"
+    echo "  cat periods/calibration_log.csv"
+    echo "    Raw calibration log."
+    echo ""
+    echo "  tail -20 periods/calibration_log.csv"
+    echo "    Last 20 logged runs."
+    echo ""
+    echo "  grep '<config>' periods/calibration_log.csv"
+    echo "    Filter log by config name."
+    echo ""
+    echo -e "${BOLD}=================================================================${NC}"
+}
+
+# -----------------------------------------------------------------------
 # Subcommand: log
 # -----------------------------------------------------------------------
 function cmd_log() {
@@ -345,7 +443,8 @@ function main() {
         show)               cmd_show   "$@" ;;
         remove)             cmd_remove "$@" ;;
         log)                cmd_log    "$@" ;;
-        -h|--help|help)     usage ;;
+        help)               cmd_help        ;;
+        -h|--help)          usage ;;
         --version)          echo "${SCRIPT_NAME} version ${VERSION}"; exit 0 ;;
         *)
             echo -e "${RED}Error:${NC} Unknown subcommand: '${subcmd}'" >&2

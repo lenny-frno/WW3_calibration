@@ -22,3 +22,6 @@ pgopti.*
 .DS_Store
 *.swp
 *~
+
+*.period
+

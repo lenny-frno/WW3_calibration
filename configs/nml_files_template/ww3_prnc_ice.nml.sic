@@ -66,10 +66,10 @@ FORCING%TIMESTOP	     = '{{END_DATE}}'
 !     FILE%TIMESHIFT     = '00000000 000000' ! shift the time value to 'YYYYMMDD HHMMSS'
 ! -------------------------------------------------------------------- !
 &FILE_NML
-  FILE%FILENAME      = '../../forcings/2021_01_CARRA2_ice.nc'
-  FILE%LONGITUDE     = 'x'
-  FILE%LATITUDE      = 'y'
-  FILE%VAR(1)        = 'ga_ci_1'
+  FILE%FILENAME      = '{{ICE_FILENAME}}'          ! set in params.env: ICE_FILENAME=ice.nc
+  FILE%LONGITUDE     = '{{ICE_LON_DIM}}'           ! set in params.env: ICE_LON_DIM=x
+  FILE%LATITUDE      = '{{ICE_LAT_DIM}}'           ! set in params.env: ICE_LAT_DIM=y
+  FILE%VAR(1)        = '{{SIC_VAR}}'               ! set in params.env: SIC_VAR=ga_ci_1
 /
 ! -------------------------------------------------------------------- !
 ! WAVEWATCH III - end of namelist                                      !

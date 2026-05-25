@@ -1,5 +1,5 @@
 ---
-mode: 'agent'
+agent: agent
 tools: ['codebase', 'editFiles', 'readFile', 'findFiles']
 description: 'Generate WW3 calibration experiment commands (BETAMAX + WCOR1/2) with all forcings, across multiple storm periods'
 ---

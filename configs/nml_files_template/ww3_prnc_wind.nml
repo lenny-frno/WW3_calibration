@@ -67,11 +67,11 @@ FORCING%TIMESTOP             = '{{END_DATE}}'
 !     FILE%TIMESHIFT     = '00000000 000000' ! shift the time value to 'YYYYMMDD HHMMSS'
 ! -------------------------------------------------------------------- !
 &FILE_NML
-  FILE%FILENAME      = '../../forcings/2021_01_CARRA2_wind.nc'
-  FILE%LONGITUDE     = 'x'
-  FILE%LATITUDE      = 'y'
-  FILE%VAR(1)        = 'x_wind_10m'
-  FILE%VAR(2)        = 'y_wind_10m'
+  FILE%FILENAME      = '{{WIND_FILENAME}}'        ! set in params.env: WIND_FILENAME=wind.nc
+  FILE%LONGITUDE     = '{{WIND_LON_DIM}}'         ! set in params.env: WIND_LON_DIM=x
+  FILE%LATITUDE      = '{{WIND_LAT_DIM}}'         ! set in params.env: WIND_LAT_DIM=y
+  FILE%VAR(1)        = '{{WIND_VAR_X}}'           ! set in params.env: WIND_VAR_X=x_wind_10m
+  FILE%VAR(2)        = '{{WIND_VAR_Y}}'           ! set in params.env: WIND_VAR_Y=y_wind_10m
 /
 ! -------------------------------------------------------------------- !
 ! WAVEWATCH III - end of namelist                                      !
