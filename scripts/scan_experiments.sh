@@ -119,8 +119,8 @@ status_color() {
 # Returns 0 (true) if Wave.nc or any ww3.*.nc exists under work/.
 _has_wave_output() {
     local work_dir="$1/work"
-    [[ -f "${work_dir}/Wave.nc" ]]           && return 0
-    ls "${work_dir}"/ww3.*.nc &>/dev/null    && return 0
+    [[ -f "${work_dir}/Wave*.nc" ]]           && return 0
+    ls "${work_dir}"/Wave*.nc &>/dev/null    && return 0
     ls "${work_dir}"/ww3*.nc  &>/dev/null    && return 0
     return 1
 }
