@@ -1,1 +1,5 @@
 timestamp,config,period,exp_name,start_date,end_date,nodes,ntasks,shel_job_id,status
+2026-05-18T09:38:29+02:00,CARRA2_exp_1,storm_eunice_2022,CARRA2_exp_1__storm_eunice_2022,20220218,20220221,?,1040,62549,SUBMITTED
+2026-05-18T09:38:29+02:00,CARRA2_exp_1,storm_jan_2021,CARRA2_exp_1__storm_jan_2021,20210116,20210124,?,1040,62553,SUBMITTED
+2026-05-18T09:38:29+02:00,CARRA2_exp_1,storm_jan_2022,CARRA2_exp_1__storm_jan_2022,20220109,20220115,?,1040,62557,SUBMITTED
+2026-05-18T09:38:30+02:00,CARRA2_exp_1,storm_jan_2024,CARRA2_exp_1__storm_jan_2024,20240125,20240204,?,1040,62561,SUBMITTED

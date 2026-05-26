@@ -24,7 +24,6 @@ pgopti.*
 *~
 
 *.period
-
 benchmark_summary.csv
 .github/prompts/validation.prompt.md
 .github/copilot-instructions.md
