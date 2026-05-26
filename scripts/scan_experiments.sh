@@ -577,6 +577,9 @@ ERRORED=0
 for idx in "${SELECTED_INDICES[@]}"; do
     dir="${VISIBLE_DIRS[idx]}"
     name="${VISIBLE_NAMES[idx]}"
+    # metadata/setup/ is write-locked by setup.sh (chmod -R a-w).
+    # Unlock before removal so rm -rf can delete every file.
+    chmod -R u+w "${dir}" 2>/dev/null || true
     if rm -rf "${dir}"; then
         echo -e "  ${C_GREEN}✓${C_RESET}  Removed: ${name}  (${dir})"
         (( REMOVED++ )) || true
