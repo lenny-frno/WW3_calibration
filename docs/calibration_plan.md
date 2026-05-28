@@ -288,7 +288,9 @@ experiments/with_sic__w1_99_w2_00__omph__BETAMAX_143__storm_eunice_2022/
 ### Phase 1 — all BM values × all periods, per binary
 
 Run once per binary. `--sweep` generates the Cartesian product (6 BM × 11 periods = 66 exp/binary).
-Wall time auto-scales from the `.period` file; no manual `-t` adjustment needed per storm.
+When `-t` is not provided, wall time auto-scales from `PERIOD_DURATION_DAYS` in the `.period`
+file using a fixed 5:1 ratio: `wall_hours = sim_days / 5` (e.g. 3 days -> `00:36:00`).
+If you pass `-t`, that explicit value overrides autoscaling.
 
 ```bash
 # ---- OMPH binary (fastest; run first) ----
@@ -442,9 +444,10 @@ column -t -s',' periods/calibration_log.csv | grep with_sic
 - **Binary cross-check**: physics must be identical across `ref`, `p3avx2`, and `omph`.
   Fast-math (`-fp-model fast=2`) and AVX widening introduce rounding differences typically
   < 10⁻⁶ relative in Hs. Flag anything > 10⁻⁴ as a compilation regression to investigate.
-- **Wall time scaling**: both loops auto-scale with `PERIOD_DURATION_DAYS` sourced from the
-  `.period` file. Reference values for a 3-day storm: `omph` ≈ 20 min · `p3avx2` ≈ 30 min ·
-  `ref` ≈ 45 min. No manual wall-time adjustment needed when adding new periods.
+- **Wall time scaling**: `run_calibration.sh` auto-sets `-t` from `PERIOD_DURATION_DAYS` when
+  `-t` is not explicitly provided, using `wall_hours = sim_days / 5`.
+  For a 3-day storm this yields `00:36:00`.
+  To force binary-specific limits (for example `omph` 20 min), pass `-t` explicitly.
 - When additional storm periods become available, add their names to the `PERIODS` arrays —
   the loops, wall-time scaling, and registration commands all work automatically.
 
