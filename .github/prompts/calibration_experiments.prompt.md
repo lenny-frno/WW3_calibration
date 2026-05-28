@@ -90,18 +90,17 @@ For each experiment, emit a block like:
 
 ```bash
 # BETAMAX=1.55 | WCOR1=99 | WCOR2=0.0 | period: storm_eunice_2022
-./scripts/setup.sh \
-  -e "with_sic__bm155_w1_99_w2_00__storm_eunice_2022" \
+./scripts/run_calibration.sh \
   -c configs/with_sic \
   -P storm_eunice_2022 \
+  -w "${OMPH_WW3}" --omph \
   -X BETAMAX=1.55 \
   -X MISC_WCOR1=99 \
   -X MISC_WCOR2=0.0 \
-  -t "calibration,sic,betamax,wcor"
-
-./scripts/run_exp.sh \
-  -e "with_sic__bm155_w1_99_w2_00__storm_eunice_2022" \
-  -N 16 -n 60 --cpus-per-task 2 -t 00:20:00 -d 3d --post
+  -e "with_sic__bm155_w1_99_w2_00__omph" \
+  -N 16 -n 60 --cpus-per-task 2 --post
+# -t is auto-set from PERIOD_DURATION_DAYS using wall_hours = sim_days / 5.
+# Add -t HH:MM:SS to override autoscaling.
 ```
 
 Use a consistent experiment naming scheme: `with_sic__bm{BM}_w1{W1}_w2{W2}__{period}`.

@@ -9,6 +9,8 @@
 #   2. Optionally patches env.sh for OMPH binary (--omph)
 #   3. Calls run_exp.sh -e <exp_name> [...forwarded options...]
 #   4. Appends a row to periods/calibration_log.csv
+#   5. If -t is not forwarded, auto-sets -t from PERIOD_DURATION_DAYS
+#      using a 5:1 ratio (5 sim-days -> 1 wall-clock hour)
 #
 # Usage:
 #   run_calibration.sh -c <config_dir> -P <p1>[,<p2>,...] [options] [run_exp options]
@@ -34,6 +36,7 @@
 #
 # All other flags are forwarded verbatim to run_exp.sh:
 #   -N, -n, --ntasks, --cpus-per-task, --mem-per-cpu, -t, --post, -s, -p, etc.
+#   If -t is not provided, run_calibration auto-computes it per period.
 #
 # Examples:
 #   # Simple: one config, two periods, fixed params
@@ -56,7 +59,7 @@
 # =============================================================================
 
 SCRIPT_NAME=$(basename "$0")
-VERSION="1.1"
+VERSION="1.2"
 BENCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PERIODS_DIR="${BENCH_DIR}/periods"
 CAL_LOG="${PERIODS_DIR}/calibration_log.csv"
@@ -102,6 +105,8 @@ ${BOLD}Optional:${NC}
 ${BOLD}Forwarded to run_exp.sh:${NC}
   -N <nodes>  -n <tasks/node>  --ntasks <N>  --cpus-per-task <N>
   --mem-per-cpu <MB>  -t <wall_time>  --post  -s  -p
+    If -t is omitted, this script auto-sets wall time from PERIOD_DURATION_DAYS
+    using: wall_hours = sim_days / 5
 
 ${BOLD}Examples:${NC}
   # Fixed params, two periods:
@@ -170,6 +175,26 @@ function append_log() {
     ts=$(date --iso-8601=seconds)
     echo "${ts},${config},${period},${exp_name},${start_date},${end_date},${nodes},${ntasks},${shel_job_id},${status}" \
         >> "${CAL_LOG}"
+}
+
+# Convert simulation days to Slurm wall time using a fixed ratio:
+#   5 simulation days : 1 wall-clock hour
+# Wall time (seconds) = ceil(days * 3600 / 5) = ceil(days * 720)
+function days_to_wall_hms() {
+    local days="$1"
+    local total_seconds
+
+    total_seconds=$(awk -v d="${days}" 'BEGIN {
+        s = d * 720
+        if (s < 60) s = 60
+        if (s == int(s)) printf "%d", s
+        else printf "%d", int(s) + 1
+    }')
+
+    local hh=$(( total_seconds / 3600 ))
+    local mm=$(( (total_seconds % 3600) / 60 ))
+    local ss=$(( total_seconds % 60 ))
+    printf "%02d:%02d:%02d" "${hh}" "${mm}" "${ss}"
 }
 
 function main() {
@@ -421,15 +446,31 @@ function main() {
                 fi
             fi
 
-            # Build -d flag from stored duration if not already in fwd_args
+            # Build -d and -t flags from stored duration if not already in fwd_args.
+            # -d gets period duration in days; -t uses 5:1 sim-days-to-wall-hours.
             local extra_d_flag=()
+            local extra_t_flag=()
             if [[ -n "${period_duration_days}" ]]; then
                 local already_has_d=false
+                local already_has_t=false
                 local a
                 for a in "${fwd_args[@]}"; do
                     [[ "$a" == "-d" ]] && { already_has_d=true; break; }
                 done
+                for a in "${fwd_args[@]}"; do
+                    if [[ "$a" == "-t" || "$a" == -t* ]]; then
+                        already_has_t=true
+                        break
+                    fi
+                done
                 [[ "${already_has_d}" == false ]] && extra_d_flag=(-d "${period_duration_days}")
+
+                if [[ "${already_has_t}" == false ]]; then
+                    local auto_wall_time
+                    auto_wall_time="$(days_to_wall_hms "${period_duration_days}")"
+                    extra_t_flag=(-t "${auto_wall_time}")
+                    echo "  Auto -t   : ${auto_wall_time} (from ${period_duration_days} days at 5:1)"
+                fi
             fi
 
             # ----------------------------------------------------------------
@@ -441,6 +482,7 @@ function main() {
                 "${BENCH_DIR}/scripts/run_exp.sh"
                 -e "${exp_name}"
                 "${extra_d_flag[@]}"
+                "${extra_t_flag[@]}"
                 "${fwd_args[@]}"
             )
 
