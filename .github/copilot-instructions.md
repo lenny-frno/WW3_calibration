@@ -23,6 +23,8 @@ responding "done".** Consult the full routine skill at:
 
 ### Quick checklist (expand with the skill for details)
 
+- [ ] **Cleanup** — delete any test scripts, scratch files, and LaTeX auxiliaries created
+      during diagnosis or problem-solving (see skill Step 0).
 - [ ] **Syntax check** — run `bash -n <file>` for every `.sh` file modified.
 - [ ] **Dependency map** — look up the modified file in the map inside the skill; check
       every dependent file listed there.

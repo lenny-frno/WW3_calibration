@@ -11,6 +11,45 @@ checklist in `.github/copilot-instructions.md`; this file provides the full deta
 
 ---
 
+## Step 0 — Cleanup (after any test or diagnostic work)
+
+Whenever the agent creates temporary files, test scripts, auxiliary LaTeX files, or
+intermediate artefacts during diagnosis or problem-solving, they **must be deleted** once
+the mission is complete — before reporting "done".
+
+### What to clean up
+
+| Artefact type | Examples | How to remove |
+|---|---|---|
+| LaTeX auxiliary files | `*.aux`, `*.nav`, `*.snm`, `*.toc`, `*.vrb`, `*.out`, `*.log` | `rm -f <basename>.{aux,nav,snm,toc,vrb,out,log}` |
+| Test / scratch scripts | `test_hpc.tex`, `test_part1.sh`, `scratch_*.sh` | `rm -f <file>` |
+| Test compiled output | `test_hpc.pdf`, `test_part1.pdf` and their `.log`/`.out` | `rm -f <file>` |
+| Temporary data files | `*.tmp`, `tmp_*`, `debug_*` | `rm -f <file>` |
+| Intermediate build files | `*.o`, `*.mod` left in source tree | `rm -f <file>` |
+
+### Rules
+
+1. **Scan before reporting done**: after any session involving test/debug work, check the
+   working directory (and any subdirectory touched) for leftover artefacts.
+2. **Never delete user files**: only remove files the agent itself created during the
+   current session. When in doubt, ask.
+3. **LaTeX**: always remove auxiliary files (`*.aux`, `*.nav`, `*.snm`, `*.toc`, `*.vrb`)
+   after a successful compilation — they are reproducible and clutter the repo.
+4. **Test scripts**: any `.sh`, `.tex`, `.py`, or other file with a name starting with
+   `test_`, `tmp_`, `scratch_`, or `debug_` that the agent created should be removed.
+5. **PDF proofs**: intermediate PDF compilations used only to verify a fix should be
+   removed; the final PDF (if it is the deliverable) must be kept.
+
+```bash
+# Example: clean LaTeX auxiliaries after a presentation build
+rm -f docs/presentation.{aux,nav,snm,toc,vrb,out}
+
+# Example: clean leftover test files
+rm -f docs/test_hpc*.{aux,nav,snm,toc} docs/test_part1.{aux,nav,snm,toc}
+```
+
+---
+
 ## Step 1 — Syntax check
 
 Run immediately after editing any `.sh` file, before doing anything else.
