@@ -24,6 +24,7 @@ pgopti.*
 *~
 
 *.period
+<<<<<<< HEAD
 benchmark_summary.csv
 .github/prompts/validation.prompt.md
 .github/copilot-instructions.md
@@ -33,6 +34,7 @@ ppi_setup/docs/ww3_validation_plan.md
 .github/copilot-instructions.md
 err_shel.txt
 log_shel_PR2_UNO.txt
-.gitignore
 .github/copilot-instructions.md
 ww3_binaries.env
+=======
+*.csv
