@@ -260,6 +260,7 @@ BASE_MODELS="/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/compila
 REF_WW3="/home/sm_lenal/programs/compiling/from_waveXtrems/WW3"
 P3AVX2_WW3="${BASE_MODELS}/p3_fp2_ipo_unroll_avx2_nd/WW3"
 OMPH_WW3="${BASE_MODELS}/p4_omph/WW3"
+GRID="CARRA2"   # optional override; if omitted in run_calibration.sh, setup.sh default is CARRA2
 ```
 
 ---
@@ -272,6 +273,7 @@ Single experiment; `run_calibration.sh` handles setup, OMPH patch, and submissio
 ./scripts/run_calibration.sh \
   -c configs/with_sic \
   -P storm_eunice_2022 \
+  -g "${GRID}" \
   -w "${OMPH_WW3}" --omph \
   -X BETAMAX=1.43 -X MISC_WCOR1=99 -X MISC_WCOR2=0.0 \
   -e with_sic__w1_99_w2_00__omph \
@@ -296,6 +298,7 @@ If you pass `-t`, that explicit value overrides autoscaling.
 # ---- OMPH binary (fastest; run first) ----
 ./scripts/run_calibration.sh \
   -c configs/with_sic --all-periods \
+  -g "${GRID}" \
   -w "${OMPH_WW3}" --omph \
   --sweep BETAMAX=1.33,1.43,1.50,1.55,1.65,1.75 \
   -X MISC_WCOR1=99 -X MISC_WCOR2=0.0 \
@@ -305,6 +308,7 @@ If you pass `-t`, that explicit value overrides autoscaling.
 # ---- p3avx2 binary ----
 ./scripts/run_calibration.sh \
   -c configs/with_sic --all-periods \
+  -g "${GRID}" \
   -w "${P3AVX2_WW3}" \
   --sweep BETAMAX=1.33,1.43,1.50,1.55,1.65,1.75 \
   -X MISC_WCOR1=99 -X MISC_WCOR2=0.0 \
@@ -314,6 +318,7 @@ If you pass `-t`, that explicit value overrides autoscaling.
 # ---- ref binary ----
 ./scripts/run_calibration.sh \
   -c configs/with_sic --all-periods \
+  -g "${GRID}" \
   -w "${REF_WW3}" \
   --sweep BETAMAX=1.33,1.43,1.50,1.55,1.65,1.75 \
   -X MISC_WCOR1=99 -X MISC_WCOR2=0.0 \
@@ -373,6 +378,7 @@ OMPH_WW3="/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/compilatio
 # -----------------------------------------------------------------------
 ./scripts/run_calibration.sh \
   -c configs/with_sic --all-periods \
+  -g "${GRID}" \
   -w "${OMPH_WW3}" --omph \
   --sweep MISC_WCOR1=99,15.0,20.0,25.0 \
   --sweep MISC_WCOR2=0.0,0.1,0.2 \

@@ -93,12 +93,14 @@ For each experiment, emit a block like:
 ./scripts/run_calibration.sh \
   -c configs/with_sic \
   -P storm_eunice_2022 \
+  -g "${GRID}" \
   -w "${OMPH_WW3}" --omph \
   -X BETAMAX=1.55 \
   -X MISC_WCOR1=99 \
   -X MISC_WCOR2=0.0 \
   -e "with_sic__bm155_w1_99_w2_00__omph" \
   -N 16 -n 60 --cpus-per-task 2 --post
+# If -g is omitted, setup.sh default grid is used (CARRA2).
 # -t is auto-set from PERIOD_DURATION_DAYS using wall_hours = sim_days / 5.
 # Add -t HH:MM:SS to override autoscaling.
 ```
