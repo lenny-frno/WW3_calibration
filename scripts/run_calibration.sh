@@ -2,7 +2,7 @@
 # =============================================================================
 # run_calibration.sh — Dispatch a WW3 config across multiple named storm periods
 # =============================================================================
-# Version: 1.1
+# Version: 1.3
 #
 # For each specified period (× each parameter sweep combo):
 #   1. Calls setup.sh -c <config_dir> -P <period> -e <exp_name> [-w] [-X ...]
@@ -22,6 +22,7 @@
 #   -e  <prefix>                   Experiment name prefix (default: config dir basename)
 #                                  Exp dirs named:  <prefix>[__SWEEP_TAG]__<period>
 #   -w  <ww3_dir>                  WW3 binary root dir; forwarded to setup.sh
+#   -g  <grid_name>                Grid name; forwarded to setup.sh as -g
 #   -X  KEY=VALUE                  Namelist override; forwarded to setup.sh (repeatable)
 #   --sweep KEY=v1,v2,...          Sweep a parameter over a list of values (repeatable).
 #                                  Generates one experiment per value (x per period).
@@ -59,7 +60,7 @@
 # =============================================================================
 
 SCRIPT_NAME=$(basename "$0")
-VERSION="1.2"
+VERSION="1.3"
 BENCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PERIODS_DIR="${BENCH_DIR}/periods"
 CAL_LOG="${PERIODS_DIR}/calibration_log.csv"
@@ -92,6 +93,8 @@ ${BOLD}Optional:${NC}
   -e  <prefix>                Experiment name prefix (default: config dirname)
                               Experiment dirs: <prefix>[__SWEEP_TAG]__<period_name>
   -w  <ww3_dir>               WW3 binary root dir (forwarded to setup.sh as -w)
+    -g  <grid_name>             Grid name (forwarded to setup.sh as -g).
+                                                            If omitted, setup.sh default is used (CARRA2).
   -X  KEY=VALUE               Namelist override — passed to setup.sh (repeatable)
   --sweep KEY=v1,v2,...       Sweep a parameter over values (repeatable).
                               Multiple --sweep flags produce a Cartesian product.
@@ -202,6 +205,7 @@ function main() {
     local periods_arg=""
     local exp_prefix=""
     local ww3_dir=""
+    local grid_name=""
     local all_periods=false
     local dry_run=false
     local omph=false
@@ -234,6 +238,10 @@ function main() {
                 i=$(( i + 1 )); ww3_dir="${args[${i}]}" ;;
             -w*)
                 ww3_dir="${arg#-w}" ;;
+            -g)
+                i=$(( i + 1 )); grid_name="${args[${i}]}" ;;
+            -g*)
+                grid_name="${arg#-g}" ;;
             -X)
                 i=$(( i + 1 )); extra_x_args+=(-X "${args[${i}]}") ;;
             -X*)
@@ -332,6 +340,7 @@ function main() {
     echo "  Exp prefix  : ${exp_prefix}"
     echo "  Periods     : ${#period_list[@]}  (${period_list[*]})"
     [[ -n "${ww3_dir}" ]]               && echo "  WW3 binary  : ${ww3_dir}"
+    [[ -n "${grid_name}" ]]             && echo "  Grid        : ${grid_name}"
     [[ ${#extra_x_args[@]} -gt 0 ]]    && echo "  -X overrides: ${extra_x_args[*]}"
     [[ ${#sweep_combos[@]} -gt 1 ]]    && echo "  Sweep combos: ${#sweep_combos[@]}  (${sweep_combos[*]})"
     echo "  OMPH patch  : ${omph}"
@@ -407,6 +416,7 @@ function main() {
                 -P "${period}"
             )
             [[ -n "${ww3_dir}" ]]            && setup_cmd+=(-w "${ww3_dir}")
+            [[ -n "${grid_name}" ]]          && setup_cmd+=(-g "${grid_name}")
             [[ -n "${exp_group}" ]]           && setup_cmd+=(--exp-group "${exp_group}")
             [[ ${#extra_x_args[@]} -gt 0 ]]  && setup_cmd+=("${extra_x_args[@]}")
             [[ ${#combo_x_args[@]} -gt 0 ]]  && setup_cmd+=("${combo_x_args[@]}")
