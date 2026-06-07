@@ -2,7 +2,7 @@
 # =============================================================================
 # run_calibration.sh — Dispatch a WW3 config across multiple named storm periods
 # =============================================================================
-# Version: 1.3
+# Version: 1.4
 #
 # For each specified period (× each parameter sweep combo):
 #   1. Calls setup.sh -c <config_dir> -P <period> -e <exp_name> [-w] [-X ...]
@@ -60,7 +60,7 @@
 # =============================================================================
 
 SCRIPT_NAME=$(basename "$0")
-VERSION="1.3"
+VERSION="1.4"
 BENCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PERIODS_DIR="${BENCH_DIR}/periods"
 CAL_LOG="${PERIODS_DIR}/calibration_log.csv"
@@ -101,6 +101,14 @@ ${BOLD}Optional:${NC}
                               Auto-appends __KEY_VTAG to the exp name per combo.
   --omph                      Inject WW3_OMP_THREADS=2 + I_MPI_ASYNC_PROGRESS=0
                               into env.sh after setup (required for omph binary)
+  --rerun                     Skip setup.sh; clean partial outputs and resubmit.
+                              Requires the experiment directory to already exist.
+                              Deletes output NetCDFs and ww3_shel outputs from
+                              work/ (out_grd.ww3, test001.ww3, log.ww3); keeps
+                              preprocessing outputs (mod_def.ww3, wind.ww3,
+                              ice.ww3) so you can add -s to skip prep.
+                              If --omph is set, the patch is checked and applied
+                              only if not already present.
   --all-periods               Run every .period file found in ${PERIODS_DIR}/
   --dry-run                   No submissions or directories created
   -h|--help                   Show this help
@@ -209,6 +217,7 @@ function main() {
     local all_periods=false
     local dry_run=false
     local omph=false
+    local rerun=false
     local use_groups=false
     local fwd_args=()
     local extra_x_args=()
@@ -257,6 +266,8 @@ function main() {
                 sweep_values+=("${_sv}") ;;
             --omph)
                 omph=true ;;
+            --rerun)
+                rerun=true ;;
             --all-periods)
                 all_periods=true ;;
             --use-groups)
@@ -344,6 +355,7 @@ function main() {
     [[ ${#extra_x_args[@]} -gt 0 ]]    && echo "  -X overrides: ${extra_x_args[*]}"
     [[ ${#sweep_combos[@]} -gt 1 ]]    && echo "  Sweep combos: ${#sweep_combos[@]}  (${sweep_combos[*]})"
     echo "  OMPH patch  : ${omph}"
+    echo "  Rerun mode  : ${rerun}"
     echo "  Use groups  : ${use_groups}"
     echo "  Dry-run     : ${dry_run}"
     [[ ${#fwd_args[@]} -gt 0 ]]        && echo "  Fwd to run_exp: ${fwd_args[*]}"
@@ -405,52 +417,84 @@ function main() {
             [[ -n "${period_duration_days}" ]] && echo "  Duration  : ${period_duration_days} days"
             echo "------------------------------------------------------------"
 
-            # ----------------------------------------------------------------
-            # Step 1 — setup.sh
-            # ----------------------------------------------------------------
-            echo "[1/3] Setting up experiment: ${exp_name}"
-            local setup_cmd=(
-                "${BENCH_DIR}/scripts/setup.sh"
-                -e "${exp_name}"
-                -c "${config_dir}"
-                -P "${period}"
-            )
-            [[ -n "${ww3_dir}" ]]            && setup_cmd+=(-w "${ww3_dir}")
-            [[ -n "${grid_name}" ]]          && setup_cmd+=(-g "${grid_name}")
-            [[ -n "${exp_group}" ]]           && setup_cmd+=(--exp-group "${exp_group}")
-            [[ ${#extra_x_args[@]} -gt 0 ]]  && setup_cmd+=("${extra_x_args[@]}")
-            [[ ${#combo_x_args[@]} -gt 0 ]]  && setup_cmd+=("${combo_x_args[@]}")
-            [[ "${dry_run}" == true ]]        && setup_cmd+=("--dry-run")
+            # Resolve experiment directory path (shared by rerun cleanup and OMPH patch)
+            local exp_dir_path
+            if [[ -n "${exp_group}" ]]; then
+                exp_dir_path="${BENCH_DIR}/experiments/${exp_group}/${exp_name}"
+            else
+                exp_dir_path="${BENCH_DIR}/experiments/${exp_name}"
+            fi
 
-            if ! "${setup_cmd[@]}"; then
-                echo -e "${RED}ERROR:${NC} setup.sh failed for '${exp_name}' — skipping." >&2
-                append_log "${config_name}" "${period}" "${log_name}" \
-                    "${start_date}" "${end_date}" "?" "?" "FAILED_SETUP" "SETUP_FAILED"
-                (( n_failed++ )) || true
-                echo ""
-                continue
+            # ----------------------------------------------------------------
+            # Step 1 — setup.sh  (skipped in --rerun mode)
+            # ----------------------------------------------------------------
+            if [[ "${rerun}" == false ]]; then
+                echo "[1/3] Setting up experiment: ${exp_name}"
+                local setup_cmd=(
+                    "${BENCH_DIR}/scripts/setup.sh"
+                    -e "${exp_name}"
+                    -c "${config_dir}"
+                    -P "${period}"
+                )
+                [[ -n "${ww3_dir}" ]]            && setup_cmd+=(-w "${ww3_dir}")
+                [[ -n "${grid_name}" ]]          && setup_cmd+=(-g "${grid_name}")
+                [[ -n "${exp_group}" ]]           && setup_cmd+=(--exp-group "${exp_group}")
+                [[ ${#extra_x_args[@]} -gt 0 ]]  && setup_cmd+=("${extra_x_args[@]}")
+                [[ ${#combo_x_args[@]} -gt 0 ]]  && setup_cmd+=("${combo_x_args[@]}")
+                [[ "${dry_run}" == true ]]        && setup_cmd+=("--dry-run")
+
+                if ! "${setup_cmd[@]}"; then
+                    echo -e "${RED}ERROR:${NC} setup.sh failed for '${exp_name}' — skipping." >&2
+                    append_log "${config_name}" "${period}" "${log_name}" \
+                        "${start_date}" "${end_date}" "?" "?" "FAILED_SETUP" "SETUP_FAILED"
+                    (( n_failed++ )) || true
+                    echo ""
+                    continue
+                fi
+            else
+                # -- Rerun: verify directory exists, then clean partial outputs --
+                echo "[1/3] Rerun — cleaning partial outputs: ${exp_dir_path}"
+                if [[ ! -d "${exp_dir_path}" ]]; then
+                    echo -e "${RED}ERROR:${NC} Experiment directory not found for rerun:" >&2
+                    echo "         ${exp_dir_path}" >&2
+                    append_log "${config_name}" "${period}" "${log_name}" \
+                        "${start_date}" "${end_date}" "?" "?" "NO_DIR" "RERUN_FAILED"
+                    (( n_failed++ )) || true
+                    echo ""
+                    continue
+                fi
+                local work_dir_rerun="${exp_dir_path}/work"
+                if [[ "${dry_run}" == true ]]; then
+                    echo "  [DRY-RUN] Would delete non-symlink *.nc in ${work_dir_rerun}"
+                    echo "  [DRY-RUN] Would delete out_grd.ww3 test001.ww3 log.ww3"
+                else
+                    # Delete output NetCDFs — skip symlinks (wind.nc, ice.nc)
+                    find "${work_dir_rerun}" -maxdepth 1 -name "*.nc" ! -type l -delete 2>/dev/null || true
+                    # Delete ww3_shel binary outputs; keep prep outputs (mod_def, wind, ice .ww3)
+                    rm -f "${work_dir_rerun}/out_grd.ww3" \
+                          "${work_dir_rerun}/test001.ww3" \
+                          "${work_dir_rerun}/log.ww3"
+                    echo "      Cleaned: output *.nc, out_grd.ww3, test001.ww3, log.ww3"
+                fi
             fi
 
             # ----------------------------------------------------------------
             # Step 2 — OMPH env.sh patch (if --omph)
             # ----------------------------------------------------------------
             if [[ "${omph}" == true ]]; then
-                # Resolve env.sh path (supports both flat and grouped layouts)
-                local exp_dir_path
-                if [[ -n "${exp_group}" ]]; then
-                    exp_dir_path="${BENCH_DIR}/experiments/${exp_group}/${exp_name}"
-                else
-                    exp_dir_path="${BENCH_DIR}/experiments/${exp_name}"
-                fi
                 local env_file="${exp_dir_path}/metadata/setup/env.sh"
                 if [[ "${dry_run}" == true ]]; then
-                    echo "[DRY-RUN] Would patch ${env_file} with WW3_OMP_THREADS=2"
+                    echo "[DRY-RUN] Would check/apply OMPH patch to ${env_file}"
                 elif [[ -f "${env_file}" ]]; then
-                    chmod u+w "${env_file}"
-                    echo "export WW3_OMP_THREADS=2"      >> "${env_file}"
-                    echo "export I_MPI_ASYNC_PROGRESS=0" >> "${env_file}"
-                    chmod a-w "${env_file}"
-                    echo "[2/3] OMPH env patch applied: ${env_file}"
+                    if grep -q "WW3_OMP_THREADS=2" "${env_file}"; then
+                        echo "[2/3] OMPH patch already present — skipping"
+                    else
+                        chmod u+w "${env_file}"
+                        echo "export WW3_OMP_THREADS=2"      >> "${env_file}"
+                        echo "export I_MPI_ASYNC_PROGRESS=0" >> "${env_file}"
+                        chmod a-w "${env_file}"
+                        echo "[2/3] OMPH env patch applied: ${env_file}"
+                    fi
                 else
                     echo -e "${YELLOW}WARNING:${NC} env.sh not found for OMPH patch: ${env_file}" >&2
                 fi
