@@ -235,10 +235,7 @@ bash scripts/manage_periods.sh add storm_eowyn_2025 \
 ### 3 — Verify compiled binaries
 
 ```bash
-BASE="/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/compilation_Benchmark/models"
-REF_WW3="/home/sm_lenal/programs/compiling/from_waveXtrems/WW3"
-P3AVX2_WW3="${BASE}/p3_fp2_ipo_unroll_avx2_nd/WW3"
-OMPH_WW3="${BASE}/p4_omph/WW3"
+source ww3_binaries.env
 
 for bin_path in "${REF_WW3}" "${P3AVX2_WW3}" "${OMPH_WW3}"; do
   [[ -x "${bin_path}" ]] \
@@ -256,10 +253,9 @@ All experiments: `MISC_WCOR1=99`, `MISC_WCOR2=0.0`. Binary and period are free d
 ```bash
 cd /nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/calibration
 
-BASE_MODELS="/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/compilation_Benchmark/models"
-REF_WW3="/home/sm_lenal/programs/compiling/from_waveXtrems/WW3"
-P3AVX2_WW3="${BASE_MODELS}/p3_fp2_ipo_unroll_avx2_nd/WW3"
-OMPH_WW3="${BASE_MODELS}/p4_omph/WW3"
+# Load all compiled binary paths (REF_WW3, P3AVX2_WW3, OMPH_WW3, CAL_DIR)
+source ww3_binaries.env
+
 GRID="CARRA2"   # optional override; if omitted in run_calibration.sh, setup.sh default is CARRA2
 ```
 
@@ -425,6 +421,52 @@ Grouped naming (`--use-groups`):
 
 # Quick CSV summary
 column -t -s',' periods/calibration_log.csv | grep with_sic
+```
+
+---
+
+## Rerunning cancelled or incomplete experiments
+
+Use `--rerun` instead of deleting the experiment directory and starting over.
+`run_calibration.sh` will clean partial outputs and resubmit without re-running setup.
+
+**What `--rerun` does:**
+- Skips `setup.sh` — namelists, symlinks, and env.sh are left untouched
+- Deletes output files from `work/`: non-symlink `*.nc`, `out_grd.ww3`, `test001.ww3`, `log.ww3`
+- Keeps preprocessing outputs (`mod_def.ww3`, `wind.ww3`, `ice.ww3`) — add `-s` to skip prep
+- With `--omph`: checks for `WW3_OMP_THREADS=2` in `env.sh` and applies it only if missing
+
+```bash
+source ww3_binaries.env
+
+# Rerun a single period with the same layout
+./scripts/run_calibration.sh \
+  -c configs/with_sic -P storm_eunice_2022 \
+  -e with_sic__w1_99_w2_00__omph \
+  --rerun --omph \
+  -N 16 -n 60 --cpus-per-task 2 --post
+
+# Rerun skipping preprocessing (prep outputs already in work/)
+./scripts/run_calibration.sh \
+  -c configs/with_sic -P storm_eunice_2022 \
+  -e with_sic__w1_99_w2_00__omph \
+  --rerun --omph -s \
+  -N 16 -n 60 --cpus-per-task 2 --post
+
+# Rerun all periods for a sweep combo (e.g. after cluster maintenance)
+./scripts/run_calibration.sh \
+  -c configs/with_sic --all-periods \
+  -e with_sic__w1_99_w2_00__omph \
+  --sweep BETAMAX=1.55 \
+  --rerun --omph \
+  -N 16 -n 60 --cpus-per-task 2 --post
+
+# Scaling experiment: rerun with a different node layout (no setup, no clean needed)
+./scripts/run_calibration.sh \
+  -c configs/with_sic -P storm_eunice_2022 \
+  -e with_sic__w1_99_w2_00__omph \
+  --rerun --omph \
+  -N 8 -n 60 --cpus-per-task 2 -t 00:40:00 --post
 ```
 
 ---
