@@ -37,3 +37,5 @@ log_shel_PR2_UNO.txt
 .gitignore
 .github/copilot-instructions.md
 ww3_binaries.env
+storm_periods_reduced.csv
+ww3_grid.nml_PR2_UNO.txt
