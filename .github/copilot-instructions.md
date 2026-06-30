@@ -78,6 +78,9 @@ Use this to know **what else to check** when a file changes.
 | `docs/recipe_calibration.md` | Verify steps match current `scripts/` and `configs/` |
 | `.github/prompts/calibration_experiments.prompt.md` | Verify file paths and flags still valid |
 | `README.md` | Verify directory structure section is accurate |
+| `docs/validation_plan.md` | `ppi_setup/docs/ww3_validation_plan.md` (re-scp to PPI), `ppi_setup/.github/copilot-instructions.md` (interface contract section), `.github/prompts/validation.prompt.md` |
+| `ppi_setup/.github/copilot-instructions.md` | `docs/validation_plan.md` §10 (staging section) |
+| `configs/nml_files_template/params.env` (`OUTPUT_FIELDS`) | `docs/validation_plan.md` §3.1 output spec, `.github/prompts/validation.prompt.md` |
 
 ### Periods
 
