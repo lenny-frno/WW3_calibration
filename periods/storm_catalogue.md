@@ -1,125 +1,233 @@
-# WW3 Calibration Storm Catalogue — Norwegian / North / Barents Sea (2010–2025)
+# WW3 Calibration Storm Catalogue — Automated storm catalog (2010–2025)
 
-**Purpose**: 10 well-documented historical storms for CARRA2-forced WW3 calibration runs.  
-**Criteria**: Occurred 2010–2025 · Norwegian Sea / North Sea / Barents Sea · ≥ 24 m/s (Bft 9+) sustained over open water · 3–10 day active period.  
-**Generated**: from Wikipedia List of European Windstorms + individual storm articles (verified).
+**Purpose**: 23 storms from automated threshold-based detection for CARRA2-forced WW3 calibration runs.  
+**Source**: `storm_periods_reduced.csv` — peak-wind threshold detection across CARRA2 sub-regions.  
+**Generated**: 2026-06-25 (supersedes manually curated 10-storm catalogue; legacy entries preserved at end of file).
+---
+
+### Storm 1: storm_natl_20110211
+
+- **Date range**: 20110211 – 20110212
+- **Area**: North Atlantic Ocean (primary); merged: Baffin Bay + North Atlantic Ocean
+- **Peak wind**: ~38.2 m/s | **Season**: DJF | **Duration**: 33 h
 
 ---
 
-### Storm 1: Cyclone Berit (2011)
+### Storm 2: storm_natl_20120311
 
-- **Date range**: 20111122 – 20111129
-- **Area**: Norwegian Sea (primary) / Faroe Islands
-- **Peak winds**: ~ 51 m/s gusts (Faroe Islands, 184 km/h); Bft 11–12 over Norwegian Sea
-- **Notable impacts**: Extreme weather warning issued by Norwegian Met (ekstremvær Berit); hurricane-force gusts across Faroe Islands and west Norwegian coast; storm surge along Norwegian fjord coasts; shipping disruptions.
-- **Sources**: https://en.wikipedia.org/wiki/Cyclone_Berit ; https://en.wikipedia.org/wiki/List_of_European_windstorms
+- **Date range**: 20120311 – 20120313
+- **Area**: North Atlantic Ocean (primary)
+- **Peak wind**: ~30.9 m/s | **Season**: MAM | **Duration**: 33 h
 
 ---
 
-### Storm 2: Cyclone Friedhelm — "Hurricane Bawbag" (2011)
+### Storm 3: storm_iceland_20120829
 
-- **Date range**: 20111208 – 20111213
-- **Area**: North Sea (primary) / northern Norwegian Sea
-- **Peak winds**: ~ 47 m/s gusts over North Sea (169 km/h recorded Scotland); Bft 11–12
-- **Notable impacts**: Red wind warning issued by UK Met Office for Scotland; numerous infrastructure closures; extreme seas across central North Sea; disruptions to oil platform helicopter flights; storm track well within CARRA2 domain.
-- **Sources**: https://en.wikipedia.org/wiki/Hurricane_Bawbag ; https://en.wikipedia.org/wiki/List_of_European_windstorms
+- **Date range**: 20120829 – 20120830
+- **Area**: Iceland/Jan Mayen (primary); merged: Iceland/Jan Mayen + Norwegian Sea
+- **Peak wind**: ~23.0 m/s | **Season**: JJA | **Duration**: 27 h
 
 ---
 
-### Storm 3: Cyclone Dagmar — "Patrick" / "Tapani" (2011)
+### Storm 4: storm_arctic_20121024
 
-- **Date range**: 20111224 – 20111228
-- **Area**: Norwegian Sea / Norwegian coast (primary)
-- **Peak winds**: ~ 44 m/s 10-min sustained (Kråkenes Lighthouse, anemometer overloaded); Bft 12; central pressure 956 hPa (deepened to 964 hPa at Norwegian landfall)
-- **Notable impacts**: Landfall western Norway Christmas Day; F2 tornado in Hellesylt; Russian trawler sank in Hundeidvika; Shell Ormen Lange gas facility shut down; storm surge 50–80 cm above normal in Finnmark; 390 Telenor masts destroyed; believed third-strongest Norwegian storm in 50 years; continued across Scandinavia with 41 m/s on Swedish Höga Kusten Bridge pylons.
-- **Sources**: https://en.wikipedia.org/wiki/Cyclone_Dagmar ; https://en.wikipedia.org/wiki/List_of_European_windstorms
+- **Date range**: 20121024 – 20121025
+- **Area**: Arctic Ocean (primary)
+- **Peak wind**: ~27.3 m/s | **Season**: SON | **Duration**: 36 h
 
 ---
 
-### Storm 4: Storm Hilde (2013)
+### Storm 5: storm_nsea_20131205
 
-- **Date range**: 20131113 – 20131119
-- **Area**: Norwegian Sea (primary) / North Sea
-- **Peak winds**: ~ 45 m/s gusts (162 km/h) over western and central Norway; Bft 12; 971 hPa
-- **Notable impacts**: Extreme weather warning (ekstremvær) by Norwegian Meteorological Institute; hurricane-force gusts reaching central Norway and offshore coastal zone; wave heights in excess of 12 m in Norwegian Sea; validation data available from Norwegian coastal wave observations.
-- **Sources**: https://en.wikipedia.org/wiki/List_of_European_windstorms (2013 Nordic storms section) ; Norwegian Meteorological Institute archive: https://www.met.no
-
----
-
-### Storm 5: Cyclone Xaver (2013)
-
-- **Date range**: 20131204 – 20131211
-- **Area**: North Sea (primary) / Norwegian Sea
-- **Peak winds**: ~ 47 m/s gusts over Norway (172 km/h, Nevlunghavn); Force 12 (Bft 12) forecast for entire North Sea; 962 hPa
-- **Notable impacts**: Most serious North Sea storm surge in 60 years; Stavanger Airport closed; 15 fatalities across Europe; gusts 229 km/h in Scotland; wave height records observed at North Sea buoys; fully within CARRA2 domain and ERA-5 well-documented; insured losses €680M–€1.9B.
-- **Sources**: https://en.wikipedia.org/wiki/Cyclone_Xaver ; https://en.wikipedia.org/wiki/List_of_European_windstorms
+- **Date range**: 20131205 – 20131206
+- **Area**: North Sea (primary)
+- **Peak wind**: ~30.2 m/s | **Season**: DJF | **Duration**: 33 h
+- **Cross-reference**: Overlaps with legacy Cyclone Xaver 2013 (20131204–20131211)
 
 ---
 
-### Storm 6: Storm Ciara — "Sabine" / "Elsa" (2020)
+### Storm 6: storm_norsea_20140809
 
-- **Date range**: 20200208 – 20200213
-- **Area**: Norwegian Sea / North Sea (primary; landfall Norway 10 Feb)
-- **Peak winds**: ~ 49 m/s gusts Norway (175 km/h, Henningsvær, Lofoten); 943 hPa; Bft 12
-- **Notable impacts**: Multiple flights cancelled in Norway due to unusually low pressure (altimeter limits exceeded); highest Swedish west-coast sea levels in 34 years (up to 137 cm above average); widespread North Sea flooding; 539,000 power outages UK; North Atlantic speed record set by BA747 on tailwinds; extensive wave validation data available (North Sea buoys, satellite altimetry).
-- **Sources**: https://en.wikipedia.org/wiki/Storm_Ciara ; Norwegian Met Institute: https://www.met.no
+- **Date range**: 20140809 – 20140810
+- **Area**: Norwegian Sea (primary); merged: North Sea + Norwegian Sea
+- **Peak wind**: ~23.2 m/s | **Season**: JJA | **Duration**: 36 h
 
 ---
 
-### Storm 7: Storm Dennis — "Victoria" (2020)
+### Storm 7: storm_natl_20150309
 
-- **Date range**: 20200213 – 20200218
-- **Area**: Norwegian Sea / North Sea (primary)
-- **Peak winds**: ~ 55 m/s gusts; 920 hPa (among deepest extratropical cyclones recorded in North Atlantic); Bft 12
-- **Notable impacts**: Followed Ciara within one week onto already-saturated soils and elevated seas; record rainfall totals UK; extreme wave heights in Norwegian Sea; peak storm surge at multiple North Sea gauges; well-documented in scientific literature (e.g. Jardine et al. 2023, IJDRR); Norway, Iceland, UK all under severe warnings.
-- **Sources**: https://en.wikipedia.org/wiki/Storm_Dennis ; https://en.wikipedia.org/wiki/List_of_European_windstorms
+- **Date range**: 20150309 – 20150313
+- **Area**: North Atlantic Ocean (primary); merged: Faroe Islands + North Atlantic + North Sea + Norwegian Sea
+- **Peak wind**: ~30.3 m/s | **Season**: MAM | **Duration**: 81 h (longest event in catalog)
 
 ---
 
-### Storm 8: Storm Malik (2022)
+### Storm 8: storm_nsea_20160129
 
-- **Date range**: 20220128 – 20220131
-- **Area**: North Sea / Norwegian Sea (primary)
-- **Peak winds**: ~ 54 m/s gusts (196 km/h, 122 mph); 965 hPa; Bft 12
-- **Notable impacts**: Severe wind damage in Norway, Denmark and UK; power outages and transport disruption; wave buoy records elevated in northern North Sea; Barents Sea sea-state elevated two days after peak; excellent CARRA2 domain coverage.
-- **Sources**: https://en.wikipedia.org/wiki/Storm_Malik ; https://en.wikipedia.org/wiki/List_of_European_windstorms
+- **Date range**: 20160129 – 20160130
+- **Area**: North Sea (primary)
+- **Peak wind**: ~29.0 m/s | **Season**: DJF | **Duration**: 12 h (shortest event)
 
 ---
 
-### Storm 9: Storm Ingunn — "Margrit" (2024)
+### Storm 9: storm_barents_20170310
 
-- **Date range**: 20240130 – 20240202
-- **Area**: Norwegian Sea (primary) / Norwegian coast
-- **Peak winds**: ~ 69 m/s gusts (249 km/h) at Landsverk station, Faroe Islands — strongest European windstorm gust 2024; sustained Bft 12 over Norwegian Sea; 941 hPa
-- **Notable impacts**: Described as strongest storm to hit Norway in over 30 years; red warning for extremely strong gusts in Nordfjord, Møre og Romsdal, Trøndelag and Helgeland; centre of Bodø sealed off by police; bus blown off road in Lærdal; ~200 passengers stranded at Tromsø Airport; storm surge risk in Vestfjorden; highest avalanche warnings across southern/central Norway.
-- **Sources**: https://en.wikipedia.org/wiki/2023%E2%80%9324_European_windstorm_season#Storm_Ingunn ; Norwegian Met Institute: https://www.met.no/nyhetsarkiv/ekstremvaeret-ingunn-gir-ekstremt-kraftige-vindkast-i-more-og-romsdal-trondelag-og-helgeland
+- **Date range**: 20170310 – 20170312
+- **Area**: Barents Sea (primary)
+- **Peak wind**: ~28.5 m/s | **Season**: MAM | **Duration**: 39 h
 
 ---
 
-### Storm 10: Storm Éowyn — "Gilles" (2025)
+### Storm 10: storm_norsea_20191021
 
-- **Date range**: 20250121 – 20250127
-- **Area**: Norwegian Sea / Norwegian coast (primary)
-- **Peak winds**: ~ 50+ m/s; 941.9 hPa (one of the deepest systems of the 2024–25 season); Bft 12
-- **Notable impacts**: Named Éowyn by Met Office; extremely powerful extratropical cyclone tracking into Norwegian Sea with hurricane-force sustained winds affecting western Norway; severe warnings issued by Norwegian Meteorological Institute; North Sea wave heights elevated; records broken at several Norwegian coastal stations; good satellite altimeter overpasses available for validation.
-- **Sources**: https://en.wikipedia.org/wiki/Storm_%C3%89owyn ; Norwegian Met Institute: https://www.met.no
+- **Date range**: 20191021 – 20191022
+- **Area**: Norwegian Sea (primary)
+- **Peak wind**: ~27.8 m/s | **Season**: SON | **Duration**: 30 h
+
+---
+
+### Storm 11: storm_greenland_20200405
+
+- **Date range**: 20200405 – 20200407
+- **Area**: Greenland Sea (primary)
+- **Peak wind**: ~32.9 m/s | **Season**: MAM | **Duration**: 45 h
+
+---
+
+### Storm 12: storm_nsea_20210310
+
+- **Date range**: 20210310 – 20210311
+- **Area**: North Sea (primary)
+- **Peak wind**: ~24.9 m/s | **Season**: MAM | **Duration**: 33 h
+
+---
+
+### Storm 13: storm_nsea_20211126
+
+- **Date range**: 20211126 – 20211127
+- **Area**: North Sea (primary)
+- **Peak wind**: ~25.8 m/s | **Season**: SON | **Duration**: 27 h
+
+---
+
+### Storm 14: storm_arctic_20220122
+
+- **Date range**: 20220122 – 20220125
+- **Area**: Arctic Ocean (primary); merged: Arctic Ocean + Barents Sea
+- **Peak wind**: ~30.4 m/s | **Season**: DJF | **Duration**: 78 h
+
+---
+
+### Storm 15: storm_norsea_20220320
+
+- **Date range**: 20220320 – 20220322
+- **Area**: Norwegian Sea (primary)
+- **Peak wind**: ~27.3 m/s | **Season**: MAM | **Duration**: 30 h
+
+---
+
+### Storm 16: storm_greenland_20230202
+
+- **Date range**: 20230202 – 20230204
+- **Area**: Greenland Sea (primary)
+- **Peak wind**: ~39.9 m/s | **Season**: DJF | **Duration**: 33 h
+
+---
+
+### Storm 17: storm_greenland_20231121
+
+- **Date range**: 20231121 – 20231123
+- **Area**: Greenland Sea (primary); merged: Arctic Ocean + Greenland Sea
+- **Peak wind**: ~31.5 m/s | **Season**: SON | **Duration**: 60 h
+
+---
+
+### Storm 18: storm_norsea_20240130
+
+- **Date range**: 20240130 – 20240201
+- **Area**: Norwegian Sea (primary); merged: Faroe Islands + Norwegian Sea
+- **Peak wind**: ~31.0 m/s | **Season**: DJF | **Duration**: 42 h
+- **Cross-reference**: Overlaps with legacy Storm Ingunn 2024 (20240130–20240202)
+
+---
+
+### Storm 19: storm_norsea_20241128
+
+- **Date range**: 20241128 – 20241130
+- **Area**: Norwegian Sea (primary); merged: Barents Sea + Norwegian Sea
+- **Peak wind**: ~28.3 m/s | **Season**: SON | **Duration**: 57 h
+
+---
+
+### Storm 20: storm_norsea_20250206
+
+- **Date range**: 20250206 – 20250207
+- **Area**: Norwegian Sea (primary)
+- **Peak wind**: ~29.4 m/s | **Season**: DJF | **Duration**: 45 h
+
+---
+
+### Storm 21: storm_labrador_20250215
+
+- **Date range**: 20250215 – 20250217
+- **Area**: Labrador Sea (primary)
+- **Peak wind**: ~42.3 m/s | **Season**: DJF | **Duration**: 36 h
+
+---
+
+### Storm 22: storm_nsea_20250804
+
+- **Date range**: 20250804 – 20250806
+- **Area**: North Sea (primary); merged: Faroe Islands + North Sea
+- **Peak wind**: ~24.4 m/s | **Season**: JJA | **Duration**: 54 h
+
+---
+
+### Storm 23: storm_nsea_20251003
+
+- **Date range**: 20251003 – 20251005
+- **Area**: North Sea (primary); merged: Faroe Islands + North Sea
+- **Peak wind**: ~26.9 m/s | **Season**: SON | **Duration**: 69 h
+
+---
+
+
+## Legacy catalog — Named storms (pre-2026-06)
+
+10 manually curated historically significant named storms originally used for calibration.
+Superseded by the automated catalog above.
+Cross-references: `storm_nsea_20131205` ≈ Xaver; `storm_norsea_20240130` ≈ Ingunn.
+
 
 ---
 
 ## Summary table
 
-| # | Name | Start | End | Basin | Min. pressure | Peak gust |
-|---|------|-------|-----|-------|--------------|-----------|
-| 1 | Cyclone Berit 2011 | 20111122 | 20111129 | Norwegian Sea | 944 hPa | ~51 m/s |
-| 2 | Cyclone Friedhelm 2011 | 20111208 | 20111213 | North Sea | 956 hPa | ~47 m/s |
-| 3 | Cyclone Dagmar 2011 | 20111224 | 20111228 | Norwegian coast | 956 hPa | ~44 m/s sust. |
-| 4 | Storm Hilde 2013 | 20131113 | 20131119 | Norwegian Sea | 971 hPa | ~45 m/s |
-| 5 | Cyclone Xaver 2013 | 20131204 | 20131211 | North Sea | 962 hPa | ~47 m/s |
-| 6 | Storm Ciara 2020 | 20200208 | 20200213 | Norwegian Sea | 943 hPa | ~49 m/s |
-| 7 | Storm Dennis 2020 | 20200213 | 20200218 | Norwegian Sea | 920 hPa | ~55 m/s |
-| 8 | Storm Malik 2022 | 20220128 | 20220131 | North Sea | 965 hPa | ~54 m/s |
-| 9 | Storm Ingunn 2024 | 20240130 | 20240202 | Norwegian Sea | 941 hPa | ~69 m/s |
-| 10 | Storm Éowyn 2025 | 20250121 | 20250127 | Norwegian Sea | 941.9 hPa | ~50+ m/s |
+| #  | Period name | Start | End | Basin | Peak wind |
+|----|-------------|-------|-----|-------|-----------|
+|  1 | `storm_natl_20110211` | 20110211 | 20110212 | North Atlantic | ~38.2 m/s |
+|  2 | `storm_natl_20120311` | 20120311 | 20120313 | North Atlantic | ~30.9 m/s |
+|  3 | `storm_iceland_20120829` | 20120829 | 20120830 | Iceland/Jan Mayen | ~23.0 m/s |
+|  4 | `storm_arctic_20121024` | 20121024 | 20121025 | Arctic Ocean | ~27.3 m/s |
+|  5 | `storm_nsea_20131205` | 20131205 | 20131206 | North Sea | ~30.2 m/s |
+|  6 | `storm_norsea_20140809` | 20140809 | 20140810 | Norwegian Sea | ~23.2 m/s |
+|  7 | `storm_natl_20150309` | 20150309 | 20150313 | North Atlantic | ~30.3 m/s |
+|  8 | `storm_nsea_20160129` | 20160129 | 20160130 | North Sea | ~29.0 m/s |
+|  9 | `storm_barents_20170310` | 20170310 | 20170312 | Barents Sea | ~28.5 m/s |
+| 10 | `storm_norsea_20191021` | 20191021 | 20191022 | Norwegian Sea | ~27.8 m/s |
+| 11 | `storm_greenland_20200405` | 20200405 | 20200407 | Greenland Sea | ~32.9 m/s |
+| 12 | `storm_nsea_20210310` | 20210310 | 20210311 | North Sea | ~24.9 m/s |
+| 13 | `storm_nsea_20211126` | 20211126 | 20211127 | North Sea | ~25.8 m/s |
+| 14 | `storm_arctic_20220122` | 20220122 | 20220125 | Arctic Ocean | ~30.4 m/s |
+| 15 | `storm_norsea_20220320` | 20220320 | 20220322 | Norwegian Sea | ~27.3 m/s |
+| 16 | `storm_greenland_20230202` | 20230202 | 20230204 | Greenland Sea | ~39.9 m/s |
+| 17 | `storm_greenland_20231121` | 20231121 | 20231123 | Greenland Sea | ~31.5 m/s |
+| 18 | `storm_norsea_20240130` | 20240130 | 20240201 | Norwegian Sea | ~31.0 m/s |
+| 19 | `storm_norsea_20241128` | 20241128 | 20241130 | Norwegian Sea | ~28.3 m/s |
+| 20 | `storm_norsea_20250206` | 20250206 | 20250207 | Norwegian Sea | ~29.4 m/s |
+| 21 | `storm_labrador_20250215` | 20250215 | 20250217 | Labrador Sea | ~42.3 m/s |
+| 22 | `storm_nsea_20250804` | 20250804 | 20250806 | North Sea | ~24.4 m/s |
+| 23 | `storm_nsea_20251003` | 20251003 | 20251005 | North Sea | ~26.9 m/s ||
 
 All storms have sustained winds ≥ 24 m/s (Bft 9+) over the target basins and fall within the CARRA2 reanalysis domain coverage period (2010–2025). Wave buoy and satellite altimeter records are available for most events from Norwegian coastal stations, ECMWF ERA5 wave output, and CMEMS altimetry products.
 
@@ -131,53 +239,120 @@ All storms have sustained winds ≥ 24 m/s (Bft 9+) over the target basins and f
 # ============================================================
 cd /nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/calibration
 
-bash scripts/manage_periods.sh add storm_berit_2011 \
-  --start 20111122 --end 20111129 \
-  --desc "Cyclone Berit: extreme windstorm over Norwegian Sea/Faroe Islands, 944 hPa, gusts ~51 m/s" \
-  --tags "storm,calibration,norwegian_sea,bft12,2011"
+bash scripts/manage_periods.sh add storm_natl_20110211 \
+  --start 20110211 --end 20110212 \
+  --desc "North Atlantic storm, peak 38.2 m/s; merged Baffin Bay + N Atlantic; DJF 2011" \
+  --tags "storm,calibration,north_atlantic,2011"
 
-bash scripts/manage_periods.sh add storm_friedhelm_2011 \
-  --start 20111206 --end 20111213 \
-  --desc "Cyclone Friedhelm (Hurricane Bawbag): powerful North Sea windstorm, 956 hPa, gusts ~47 m/s" \
-  --tags "storm,calibration,north_sea,bft12,2011"
+bash scripts/manage_periods.sh add storm_natl_20120311 \
+  --start 20120311 --end 20120313 \
+  --desc "North Atlantic storm, peak 30.9 m/s; MAM 2012" \
+  --tags "storm,calibration,north_atlantic,2012"
 
-bash scripts/manage_periods.sh add storm_dagmar_2011 \
-  --start 20111222 --end 20111228 \
-  --desc "Cyclone Dagmar (Patrick/Tapani): Christmas 2011, Norwegian coast landfall, 956 hPa, 44 m/s sustained" \
-  --tags "storm,calibration,norwegian_sea,bft12,2011"
+bash scripts/manage_periods.sh add storm_iceland_20120829 \
+  --start 20120829 --end 20120830 \
+  --desc "Iceland/Jan Mayen storm, peak 23.0 m/s; merged Iceland + Norwegian Sea; JJA 2012" \
+  --tags "storm,calibration,iceland,norwegian_sea,2012"
 
-bash scripts/manage_periods.sh add storm_hilde_2013 \
-  --start 20131111 --end 20131119 \
-  --desc "Storm Hilde: extreme weather warning Norway, Norwegian Sea, 971 hPa, gusts ~45 m/s" \
-  --tags "storm,calibration,norwegian_sea,bft12,2013"
+bash scripts/manage_periods.sh add storm_arctic_20121024 \
+  --start 20121024 --end 20121025 \
+  --desc "Arctic Ocean storm, peak 27.3 m/s; SON 2012" \
+  --tags "storm,calibration,arctic,2012"
 
-bash scripts/manage_periods.sh add storm_xaver_2013 \
-  --start 20131202 --end 20131211 \
-  --desc "Cyclone Xaver: most serious North Sea storm surge in 60 years, 962 hPa, Force 12" \
-  --tags "storm,calibration,north_sea,norwegian_sea,bft12,2013"
+bash scripts/manage_periods.sh add storm_nsea_20131205 \
+  --start 20131205 --end 20131206 \
+  --desc "North Sea storm, peak 30.2 m/s; cf. Cyclone Xaver; DJF 2013" \
+  --tags "storm,calibration,north_sea,2013"
 
-bash scripts/manage_periods.sh add storm_ciara_2020 \
-  --start 20200206 --end 20200213 \
-  --desc "Storm Ciara (Sabine/Elsa): Norwegian Sea/North Sea, 943 hPa, gusts ~49 m/s Lofoten" \
-  --tags "storm,calibration,norwegian_sea,north_sea,bft12,2020"
+bash scripts/manage_periods.sh add storm_norsea_20140809 \
+  --start 20140809 --end 20140810 \
+  --desc "Norwegian/North Sea merged storm, peak 23.2 m/s; JJA 2014" \
+  --tags "storm,calibration,norwegian_sea,north_sea,2014"
 
-bash scripts/manage_periods.sh add storm_dennis_2020 \
-  --start 20200211 --end 20200218 \
-  --desc "Storm Dennis (Victoria): 920 hPa, among deepest N Atlantic extratropical cyclones on record" \
-  --tags "storm,calibration,norwegian_sea,north_sea,bft12,2020"
+bash scripts/manage_periods.sh add storm_natl_20150309 \
+  --start 20150309 --end 20150313 \
+  --desc "North Atlantic storm, peak 30.3 m/s; 4-region merged event (Faroe+NAtl+NSea+NorSea); MAM 2015" \
+  --tags "storm,calibration,north_atlantic,norwegian_sea,north_sea,2015"
 
-bash scripts/manage_periods.sh add storm_malik_2022 \
-  --start 20220126 --end 20220131 \
-  --desc "Storm Malik: North Sea/Norwegian Sea, 965 hPa, gusts ~54 m/s (196 km/h)" \
-  --tags "storm,calibration,north_sea,norwegian_sea,bft12,2022"
+bash scripts/manage_periods.sh add storm_nsea_20160129 \
+  --start 20160129 --end 20160130 \
+  --desc "North Sea storm, peak 29.0 m/s; 12h event; DJF 2016" \
+  --tags "storm,calibration,north_sea,2016"
 
-bash scripts/manage_periods.sh add storm_ingunn_2024 \
-  --start 20240128 --end 20240202 \
-  --desc "Storm Ingunn (Margrit): 941 hPa, strongest Norway storm in 30 yrs, gusts 249 km/h Faroes" \
-  --tags "storm,calibration,norwegian_sea,bft12,2024"
+bash scripts/manage_periods.sh add storm_barents_20170310 \
+  --start 20170310 --end 20170312 \
+  --desc "Barents Sea storm, peak 28.5 m/s; MAM 2017" \
+  --tags "storm,calibration,barents_sea,2017"
 
-bash scripts/manage_periods.sh add storm_eowyn_2025 \
-  --start 20250119 --end 20250127 \
-  --desc "Storm Eowyn (Gilles): 941.9 hPa, powerful Norwegian Sea system, Bft 12, Jan 2025" \
-  --tags "storm,calibration,norwegian_sea,bft12,2025"
-```
+bash scripts/manage_periods.sh add storm_norsea_20191021 \
+  --start 20191021 --end 20191022 \
+  --desc "Norwegian Sea storm, peak 27.8 m/s; SON 2019" \
+  --tags "storm,calibration,norwegian_sea,2019"
+
+bash scripts/manage_periods.sh add storm_greenland_20200405 \
+  --start 20200405 --end 20200407 \
+  --desc "Greenland Sea storm, peak 32.9 m/s; MAM 2020" \
+  --tags "storm,calibration,greenland_sea,2020"
+
+bash scripts/manage_periods.sh add storm_nsea_20210310 \
+  --start 20210310 --end 20210311 \
+  --desc "North Sea storm, peak 24.9 m/s; MAM 2021" \
+  --tags "storm,calibration,north_sea,2021"
+
+bash scripts/manage_periods.sh add storm_nsea_20211126 \
+  --start 20211126 --end 20211127 \
+  --desc "North Sea storm, peak 25.8 m/s; SON 2021" \
+  --tags "storm,calibration,north_sea,2021"
+
+bash scripts/manage_periods.sh add storm_arctic_20220122 \
+  --start 20220122 --end 20220125 \
+  --desc "Arctic/Barents merged storm, peak 30.4 m/s; DJF 2022" \
+  --tags "storm,calibration,arctic,barents_sea,2022"
+
+bash scripts/manage_periods.sh add storm_norsea_20220320 \
+  --start 20220320 --end 20220322 \
+  --desc "Norwegian Sea storm, peak 27.3 m/s; MAM 2022" \
+  --tags "storm,calibration,norwegian_sea,2022"
+
+bash scripts/manage_periods.sh add storm_greenland_20230202 \
+  --start 20230202 --end 20230204 \
+  --desc "Greenland Sea storm, peak 39.9 m/s; DJF 2023" \
+  --tags "storm,calibration,greenland_sea,2023"
+
+bash scripts/manage_periods.sh add storm_greenland_20231121 \
+  --start 20231121 --end 20231123 \
+  --desc "Greenland/Arctic merged storm, peak 31.5 m/s; SON 2023" \
+  --tags "storm,calibration,greenland_sea,arctic,2023"
+
+bash scripts/manage_periods.sh add storm_norsea_20240130 \
+  --start 20240130 --end 20240201 \
+  --desc "Norwegian/Faroe merged storm, peak 31.0 m/s; cf. Storm Ingunn; DJF 2024" \
+  --tags "storm,calibration,norwegian_sea,2024"
+
+bash scripts/manage_periods.sh add storm_norsea_20241128 \
+  --start 20241128 --end 20241130 \
+  --desc "Norwegian/Barents merged storm, peak 28.3 m/s; SON 2024" \
+  --tags "storm,calibration,norwegian_sea,barents_sea,2024"
+
+bash scripts/manage_periods.sh add storm_norsea_20250206 \
+  --start 20250206 --end 20250207 \
+  --desc "Norwegian Sea storm, peak 29.4 m/s; DJF 2025" \
+  --tags "storm,calibration,norwegian_sea,2025"
+
+bash scripts/manage_periods.sh add storm_labrador_20250215 \
+  --start 20250215 --end 20250217 \
+  --desc "Labrador Sea storm, peak 42.3 m/s; DJF 2025" \
+  --tags "storm,calibration,labrador_sea,2025"
+
+bash scripts/manage_periods.sh add storm_nsea_20250804 \
+  --start 20250804 --end 20250806 \
+  --desc "North Sea/Faroe merged storm, peak 24.4 m/s; JJA 2025" \
+  --tags "storm,calibration,north_sea,2025"
+
+bash scripts/manage_periods.sh add storm_nsea_20251003 \
+  --start 20251003 --end 20251005 \
+  --desc "North Sea/Faroe merged storm, peak 26.9 m/s; SON 2025" \
+  --tags "storm,calibration,north_sea,2025"
+
+# Verify all 23 registered:
+./scripts/manage_periods.sh list

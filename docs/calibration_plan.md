@@ -66,12 +66,43 @@
 
 ## Storm periods
 
-11 storm periods available for calibration. `storm_eunice_2022` is pre-registered; the
-remaining 10 are registered in §Prerequisites.
+23 storm periods from automated catalogue (`storm_periods_reduced.csv`, peak-wind threshold ≥ 14 m/s).
+All periods registered in §Prerequisites.
+
+| #  | Period name | Start | End | Basin | Peak wind (m/s) | Days |
+|----|-------------|-------|-----|-------|-----------------|------|
+|  1 | `storm_natl_20110211` | 2011-02-11 | 2011-02-12 | North Atlantic | 38.2 | 1 |
+|  2 | `storm_natl_20120311` | 2012-03-11 | 2012-03-13 | North Atlantic | 30.9 | 2 |
+|  3 | `storm_iceland_20120829` | 2012-08-29 | 2012-08-30 | Iceland/Jan Mayen | 23.0 | 1 |
+|  4 | `storm_arctic_20121024` | 2012-10-24 | 2012-10-25 | Arctic Ocean | 27.3 | 1 |
+|  5 | `storm_nsea_20131205` | 2013-12-05 | 2013-12-06 | North Sea | 30.2 | 1 |
+|  6 | `storm_norsea_20140809` | 2014-08-09 | 2014-08-10 | Norwegian Sea | 23.2 | 1 |
+|  7 | `storm_natl_20150309` | 2015-03-09 | 2015-03-13 | North Atlantic | 30.3 | 4 |
+|  8 | `storm_nsea_20160129` | 2016-01-29 | 2016-01-30 | North Sea | 29.0 | 1 |
+|  9 | `storm_barents_20170310` | 2017-03-10 | 2017-03-12 | Barents Sea | 28.5 | 2 |
+| 10 | `storm_norsea_20191021` | 2019-10-21 | 2019-10-22 | Norwegian Sea | 27.8 | 1 |
+| 11 | `storm_greenland_20200405` | 2020-04-05 | 2020-04-07 | Greenland Sea | 32.9 | 2 |
+| 12 | `storm_nsea_20210310` | 2021-03-10 | 2021-03-11 | North Sea | 24.9 | 1 |
+| 13 | `storm_nsea_20211126` | 2021-11-26 | 2021-11-27 | North Sea | 25.8 | 1 |
+| 14 | `storm_arctic_20220122` | 2022-01-22 | 2022-01-25 | Arctic Ocean | 30.4 | 3 |
+| 15 | `storm_norsea_20220320` | 2022-03-20 | 2022-03-22 | Norwegian Sea | 27.3 | 2 |
+| 16 | `storm_greenland_20230202` | 2023-02-02 | 2023-02-04 | Greenland Sea | 39.9 | 2 |
+| 17 | `storm_greenland_20231121` | 2023-11-21 | 2023-11-23 | Greenland Sea | 31.5 | 2 |
+| 18 | `storm_norsea_20240130` | 2024-01-30 | 2024-02-01 | Norwegian Sea | 31.0 | 2 |
+| 19 | `storm_norsea_20241128` | 2024-11-28 | 2024-11-30 | Norwegian Sea | 28.3 | 2 |
+| 20 | `storm_norsea_20250206` | 2025-02-06 | 2025-02-07 | Norwegian Sea | 29.4 | 1 |
+| 21 | `storm_labrador_20250215` | 2025-02-15 | 2025-02-17 | Labrador Sea | 42.3 | 2 |
+| 22 | `storm_nsea_20250804` | 2025-08-04 | 2025-08-06 | North Sea | 24.4 | 2 |
+| 23 | `storm_nsea_20251003` | 2025-10-03 | 2025-10-05 | North Sea | 26.9 | 2 |
+---
+## Storm periods — legacy catalog (pre-2026-06)
+
+Manually curated named storms used in the original calibration plan. Superseded by the
+automated catalogue above. Kept for reference and cross-identification.
 
 | # | Period name | Start | End | Basin | Peak gust | Days |
 |---|-------------|-------|-----|-------|-----------|------|
-| 0 | `storm_eunice_2022` ✓ | 2022-02-18 | 2022-02-21 | North Sea | — | 3 |
+| 0 | `storm_eunice_2022` | 2022-02-18 | 2022-02-21 | North Sea | — | 3 |
 | 1 | `storm_berit_2011` | 2011-11-22 | 2011-11-29 | Norwegian Sea | ~51 m/s | 7 |
 | 2 | `storm_friedhelm_2011` | 2011-12-08 | 2011-12-13 | North Sea | ~47 m/s | 5 |
 | 3 | `storm_dagmar_2011` | 2011-12-24 | 2011-12-28 | Norwegian coast | ~44 m/s sust. | 4 |
@@ -83,7 +114,7 @@ remaining 10 are registered in §Prerequisites.
 | 9 | `storm_ingunn_2024` | 2024-01-30 | 2024-02-02 | Norwegian Sea | ~69 m/s | 3 |
 | 10 | `storm_eowyn_2025` | 2025-01-21 | 2025-01-27 | Norwegian Sea | ~50+ m/s | 6 |
 
----
+*Cross-reference*: `storm_xaver_2013` ≈ `storm_nsea_20131205`; `storm_ingunn_2024` ≈ `storm_norsea_20240130`.
 
 ## Compiled binary variants
 
@@ -175,62 +206,123 @@ cd /nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/experiments/calibration
 
 ### 2 — Register all catalogue storm periods
 
-`storm_eunice_2022` is already registered. Paste to add the remaining 10:
+bash scripts/manage_periods.sh add storm_natl_20110211 \
+  --start 20110211 --end 20110212 \
+  --description "North Atlantic storm, peak 38.2 m/s, merged regions: Baffin Bay + N Atlantic" \
+  --tags "storm,calibration,north_atlantic,2011"
 
-```bash
-bash scripts/manage_periods.sh add storm_berit_2011 \
-  --start 20111122 --end 20111129 \
-  --description "Cyclone Berit: extreme windstorm over Norwegian Sea/Faroe Islands, 944 hPa, gusts ~51 m/s" \
-  --tags "storm,calibration,norwegian_sea,bft12,2011"
+bash scripts/manage_periods.sh add storm_natl_20120311 \
+  --start 20120311 --end 20120313 \
+  --description "North Atlantic storm, peak 30.9 m/s" \
+  --tags "storm,calibration,north_atlantic,2012"
 
-bash scripts/manage_periods.sh add storm_friedhelm_2011 \
-  --start 20111208 --end 20111213 \
-  --description "Cyclone Friedhelm (Hurricane Bawbag): powerful North Sea windstorm, 956 hPa, gusts ~47 m/s" \
-  --tags "storm,calibration,north_sea,bft12,2011"
+bash scripts/manage_periods.sh add storm_iceland_20120829 \
+  --start 20120829 --end 20120830 \
+  --description "Iceland/Jan Mayen storm, peak 23.0 m/s, merged regions: Iceland + Norwegian Sea" \
+  --tags "storm,calibration,iceland,2012"
 
-bash scripts/manage_periods.sh add storm_dagmar_2011 \
-  --start 20111224 --end 20111228 \
-  --description "Cyclone Dagmar (Patrick/Tapani): Christmas 2011, Norwegian coast landfall, 956 hPa, 44 m/s sustained" \
-  --tags "storm,calibration,norwegian_sea,bft12,2011"
+bash scripts/manage_periods.sh add storm_arctic_20121024 \
+  --start 20121024 --end 20121025 \
+  --description "Arctic Ocean storm, peak 27.3 m/s" \
+  --tags "storm,calibration,arctic,2012"
 
-bash scripts/manage_periods.sh add storm_hilde_2013 \
-  --start 20131113 --end 20131119 \
-  --description "Storm Hilde: extreme weather warning Norway, Norwegian Sea, 971 hPa, gusts ~45 m/s" \
-  --tags "storm,calibration,norwegian_sea,bft12,2013"
+bash scripts/manage_periods.sh add storm_nsea_20131205 \
+  --start 20131205 --end 20131206 \
+  --description "North Sea storm (cf. Xaver), peak 30.2 m/s" \
+  --tags "storm,calibration,north_sea,2013"
 
-bash scripts/manage_periods.sh add storm_xaver_2013 \
-  --start 20131204 --end 20131211 \
-  --description "Cyclone Xaver: most serious North Sea storm surge in 60 years, 962 hPa, Force 12" \
-  --tags "storm,calibration,north_sea,norwegian_sea,bft12,2013"
+bash scripts/manage_periods.sh add storm_norsea_20140809 \
+  --start 20140809 --end 20140810 \
+  --description "Norwegian/North Sea storm, peak 23.2 m/s" \
+  --tags "storm,calibration,norwegian_sea,2014"
 
-bash scripts/manage_periods.sh add storm_ciara_2020 \
-  --start 20200208 --end 20200213 \
-  --description "Storm Ciara (Sabine/Elsa): Norwegian Sea/North Sea, 943 hPa, gusts ~49 m/s Lofoten" \
-  --tags "storm,calibration,norwegian_sea,north_sea,bft12,2020"
+bash scripts/manage_periods.sh add storm_natl_20150309 \
+  --start 20150309 --end 20150313 \
+  --description "North Atlantic storm, peak 30.3 m/s, 4-region merged event" \
+  --tags "storm,calibration,north_atlantic,2015"
 
-bash scripts/manage_periods.sh add storm_dennis_2020 \
-  --start 20200213 --end 20200218 \
-  --description "Storm Dennis (Victoria): 920 hPa, among deepest N Atlantic extratropical cyclones on record" \
-  --tags "storm,calibration,norwegian_sea,north_sea,bft12,2020"
+bash scripts/manage_periods.sh add storm_nsea_20160129 \
+  --start 20160129 --end 20160130 \
+  --description "North Sea storm, peak 29.0 m/s, 12h event" \
+  --tags "storm,calibration,north_sea,2016"
 
-bash scripts/manage_periods.sh add storm_malik_2022 \
-  --start 20220128 --end 20220131 \
-  --description "Storm Malik: North Sea/Norwegian Sea, 965 hPa, gusts ~54 m/s (196 km/h)" \
-  --tags "storm,calibration,north_sea,norwegian_sea,bft12,2022"
+bash scripts/manage_periods.sh add storm_barents_20170310 \
+  --start 20170310 --end 20170312 \
+  --description "Barents Sea storm, peak 28.5 m/s" \
+  --tags "storm,calibration,barents_sea,2017"
 
-bash scripts/manage_periods.sh add storm_ingunn_2024 \
-  --start 20240130 --end 20240202 \
-  --description "Storm Ingunn (Margrit): 941 hPa, strongest Norway storm in 30 yrs, gusts 249 km/h Faroes" \
-  --tags "storm,calibration,norwegian_sea,bft12,2024"
+bash scripts/manage_periods.sh add storm_norsea_20191021 \
+  --start 20191021 --end 20191022 \
+  --description "Norwegian Sea storm, peak 27.8 m/s" \
+  --tags "storm,calibration,norwegian_sea,2019"
 
-bash scripts/manage_periods.sh add storm_eowyn_2025 \
-  --start 20250121 --end 20250127 \
-  --description "Storm Eowyn (Gilles): 941.9 hPa, powerful Norwegian Sea system, Bft 12, Jan 2025" \
-  --tags "storm,calibration,norwegian_sea,bft12,2025"
+bash scripts/manage_periods.sh add storm_greenland_20200405 \
+  --start 20200405 --end 20200407 \
+  --description "Greenland Sea storm, peak 32.9 m/s" \
+  --tags "storm,calibration,greenland_sea,2020"
 
-# Verify all 11 are registered:
+bash scripts/manage_periods.sh add storm_nsea_20210310 \
+  --start 20210310 --end 20210311 \
+  --description "North Sea storm, peak 24.9 m/s" \
+  --tags "storm,calibration,north_sea,2021"
+
+bash scripts/manage_periods.sh add storm_nsea_20211126 \
+  --start 20211126 --end 20211127 \
+  --description "North Sea storm, peak 25.8 m/s" \
+  --tags "storm,calibration,north_sea,2021"
+
+bash scripts/manage_periods.sh add storm_arctic_20220122 \
+  --start 20220122 --end 20220125 \
+  --description "Arctic/Barents Sea merged storm, peak 30.4 m/s" \
+  --tags "storm,calibration,arctic,barents_sea,2022"
+
+bash scripts/manage_periods.sh add storm_norsea_20220320 \
+  --start 20220320 --end 20220322 \
+  --description "Norwegian Sea storm, peak 27.3 m/s" \
+  --tags "storm,calibration,norwegian_sea,2022"
+
+bash scripts/manage_periods.sh add storm_greenland_20230202 \
+  --start 20230202 --end 20230204 \
+  --description "Greenland Sea storm, peak 39.9 m/s" \
+  --tags "storm,calibration,greenland_sea,2023"
+
+bash scripts/manage_periods.sh add storm_greenland_20231121 \
+  --start 20231121 --end 20231123 \
+  --description "Greenland/Arctic merged storm, peak 31.5 m/s" \
+  --tags "storm,calibration,greenland_sea,arctic,2023"
+
+bash scripts/manage_periods.sh add storm_norsea_20240130 \
+  --start 20240130 --end 20240201 \
+  --description "Norwegian/Faroe merged storm, peak 31.0 m/s (cf. Ingunn)" \
+  --tags "storm,calibration,norwegian_sea,2024"
+
+bash scripts/manage_periods.sh add storm_norsea_20241128 \
+  --start 20241128 --end 20241130 \
+  --description "Norwegian/Barents merged storm, peak 28.3 m/s" \
+  --tags "storm,calibration,norwegian_sea,barents_sea,2024"
+
+bash scripts/manage_periods.sh add storm_norsea_20250206 \
+  --start 20250206 --end 20250207 \
+  --description "Norwegian Sea storm, peak 29.4 m/s" \
+  --tags "storm,calibration,norwegian_sea,2025"
+
+bash scripts/manage_periods.sh add storm_labrador_20250215 \
+  --start 20250215 --end 20250217 \
+  --description "Labrador Sea storm, peak 42.3 m/s" \
+  --tags "storm,calibration,labrador_sea,2025"
+
+bash scripts/manage_periods.sh add storm_nsea_20250804 \
+  --start 20250804 --end 20250806 \
+  --description "North Sea/Faroe merged storm, peak 24.4 m/s" \
+  --tags "storm,calibration,north_sea,2025"
+
+bash scripts/manage_periods.sh add storm_nsea_20251003 \
+  --start 20251003 --end 20251005 \
+  --description "North Sea/Faroe merged storm, peak 26.9 m/s" \
+  --tags "storm,calibration,north_sea,2025"
+
+# Verify all 23 are registered (plus storm_eunice_2022 if kept):
 ./scripts/manage_periods.sh list
-```
 
 ### 3 — Verify compiled binaries
 
