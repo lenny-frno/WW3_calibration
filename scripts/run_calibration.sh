@@ -18,6 +18,7 @@
 #
 # This script's own options:
 #   -c  <config_dir>               Config/namelist directory (required)
+#   -D  <data_root>
 #   -P  <p1>[,<p2>,...]            Comma-separated period names (or --all-periods)
 #   -e  <prefix>                   Experiment name prefix (default: config dir basename)
 #                                  Exp dirs named:  <prefix>[__SWEEP_TAG]__<period>
@@ -60,7 +61,7 @@
 # =============================================================================
 
 SCRIPT_NAME=$(basename "$0")
-VERSION="1.4"
+VERSION="1.4.1"
 BENCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PERIODS_DIR="${BENCH_DIR}/periods"
 CAL_LOG="${PERIODS_DIR}/calibration_log.csv"
@@ -196,7 +197,7 @@ function days_to_wall_hms() {
     local total_seconds
 
     total_seconds=$(awk -v d="${days}" 'BEGIN {
-        s = d * 720
+        s = d * 900
         if (s < 60) s = 60
         if (s == int(s)) printf "%d", s
         else printf "%d", int(s) + 1
@@ -210,6 +211,7 @@ function days_to_wall_hms() {
 
 function main() {
     local config_dir=""
+    local data_dir=""
     local periods_arg=""
     local exp_prefix=""
     local ww3_dir=""
@@ -235,6 +237,10 @@ function main() {
                 i=$(( i + 1 )); config_dir="${args[${i}]}" ;;
             -c*)
                 config_dir="${arg#-c}" ;;
+	    -D)
+                i=$(( i + 1 )); data_dir="${args[${i}]}" ;;
+            -D*)
+                data_dir="${arg#-D}" ;;
             -P)
                 i=$(( i + 1 )); periods_arg="${args[${i}]}" ;;
             -P*)
@@ -348,6 +354,7 @@ function main() {
     echo "============================================================"
     echo "  Config dir  : ${config_dir}"
     echo "  Config name : ${config_name}"
+    echo "  DATA dir    : ${data_dir}"
     echo "  Exp prefix  : ${exp_prefix}"
     echo "  Periods     : ${#period_list[@]}  (${period_list[*]})"
     [[ -n "${ww3_dir}" ]]               && echo "  WW3 binary  : ${ww3_dir}"
@@ -435,6 +442,7 @@ function main() {
                     -e "${exp_name}"
                     -c "${config_dir}"
                     -P "${period}"
+		    -D "${data_dir}"
                 )
                 [[ -n "${ww3_dir}" ]]            && setup_cmd+=(-w "${ww3_dir}")
                 [[ -n "${grid_name}" ]]          && setup_cmd+=(-g "${grid_name}")

@@ -166,7 +166,7 @@ fi
 EXE_SRC="${WW3}/model/exe"
 EXE_LINK_DIR="${BENCH_DIR}/exe"
 DATA_DIR="${DATA_ROOT}/${YEAR}/${MONTH}/forcings"
-GRID_DIR="${DATA_ROOT}/const/grid/${GRID}"
+GRID_DIR="/nobackup/forsk/sm_lenal/WW3/NewHindcast_CARRA2/const/grid/${GRID}"
 if [[ -n "${EXP_GROUP}" ]]; then
     EXP_DIR="${BENCH_DIR}/experiments/${EXP_GROUP}/${EXP_NAME}"
 else
